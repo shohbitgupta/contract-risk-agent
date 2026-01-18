@@ -1,0 +1,49 @@
+{
+  "india": {
+    "central": [
+      {
+        "id": "rera_act_2016",
+        "title": "Real Estate (Regulation and Development) Act, 2016",
+        "url": "https://www.icsi.edu/WebModules/REAL_ESTATE_REGULATION_AND_DEVELOPMENT_ACT.pdf",
+        "category": "central_law",
+        "jurisdiction": "India"
+      }
+    ],
+    "maharashtra": [
+      {
+        "id": "maha_rera_formats",
+        "title": "MahaRERA Formats and Model Agreements",
+        "url": "https://www.mhrera.com/maharashtra-rera-formats-other-information",
+        "category": "state_forms",
+        "jurisdiction": "Maharashtra"
+      }
+    ],
+    "karnataka": [
+      {
+        "id": "kar_rera_downloads",
+        "title": "Karnataka RERA Downloads Page",
+        "url": "https://rera.karnataka.gov.in/downloadPage",
+        "category": "state_rules_and_forms",
+        "jurisdiction": "Karnataka"
+      }
+    ],
+    "uttar_pradesh": [
+      {
+        "id": "up_rera_rules_2016",
+        "title": "Uttar Pradesh Real Estate (Regulation and Development) Rules, 2016",
+        "url": "https://www.up-rera.in/pdf/rera.pdf",
+        "category": "state_rules",
+        "jurisdiction": "Uttar Pradesh"
+      }
+    ],
+    "delhi": [
+      {
+        "id": "delhi_rera_rules",
+        "title": "Delhi RERA Rules & Guidelines",
+        "url": "https://erera.co.in/ereradelhi/acts_rules/rules",
+        "category": "state_rules",
+        "jurisdiction": "Delhi"
+      }
+    ]
+  }
+}

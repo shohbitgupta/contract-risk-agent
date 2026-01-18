@@ -1,0 +1,195 @@
+# =========================================================
+# Real Estate Intent Rules (UP-RERA)
+# =========================================================
+# This file defines:
+# - What legal intent a clause represents
+# - Which vector index to query
+# - What filters apply
+# =========================================================
+
+intents:
+  # -------------------------------------------------
+  # POSSESSION & DELAY
+  # -------------------------------------------------
+  possession_delay:
+    description: >
+      Delay or failure in handing over possession of the apartment
+      within the committed timeline.
+    keywords:
+      - possession
+      - delay
+      - handover
+      - delivery
+      - completion
+      - offer of possession
+    retrieval:
+      index: rera_act
+      filters:
+        doc_type:
+          - act
+    legal_sections:
+      - "Section 18"
+
+  # -------------------------------------------------
+  # REFUND / WITHDRAWAL / CANCELLATION
+  # -------------------------------------------------
+  refund_and_withdrawal:
+    description: >
+      Rights of the allottee to withdraw from the project
+      and seek refund with interest.
+    keywords:
+      - refund
+      - withdraw
+      - cancellation
+      - cancel
+      - termination
+      - forfeit
+    retrieval:
+      index: rera_act
+      filters:
+        doc_type:
+          - act
+    legal_sections:
+      - "Section 18"
+
+  # -------------------------------------------------
+  # INTEREST / COMPENSATION / PENALTY
+  # -------------------------------------------------
+  interest_and_compensation:
+    description: >
+      Interest or compensation payable by promoter or allottee
+      in case of default, delay, or breach.
+    keywords:
+      - interest
+      - compensation
+      - penalty
+      - default
+      - rate of interest
+      - delay charges
+    retrieval:
+      index: rera_rules
+      filters:
+        doc_type:
+          - rules
+
+  # -------------------------------------------------
+  # FORCE MAJEURE
+  # -------------------------------------------------
+  force_majeure:
+    description: >
+      Events beyond control of promoter such as natural calamities
+      that affect construction or possession.
+    keywords:
+      - force majeure
+      - act of god
+      - natural calamity
+      - earthquake
+      - flood
+      - war
+    retrieval:
+      index: rera_act
+      filters:
+        doc_type:
+          - act
+
+  # -------------------------------------------------
+  # DEFECT LIABILITY
+  # -------------------------------------------------
+  defect_liability:
+    description: >
+      Structural or workmanship defects after possession
+      and promoter's obligation to rectify them.
+    keywords:
+      - defect
+      - defect liability
+      - structural defect
+      - workmanship
+      - rectification
+    retrieval:
+      index: rera_act
+      filters:
+        doc_type:
+          - act
+    legal_sections:
+      - "Section 14"
+
+  # -------------------------------------------------
+  # ALTERATION / ADDITION / CHANGE IN PLAN
+  # -------------------------------------------------
+  alteration_and_change:
+    description: >
+      Changes or alterations to sanctioned plans, layout,
+      or specifications after allotment.
+    keywords:
+      - alteration
+      - change
+      - modification
+      - layout
+      - sanctioned plan
+      - specification
+    retrieval:
+      index: rera_act
+      filters:
+        doc_type:
+          - act
+    legal_sections:
+      - "Section 14"
+
+  # -------------------------------------------------
+  # AGREEMENT / CONTRACTUAL TERMS (MODEL BBA)
+  # -------------------------------------------------
+  agreement_terms:
+    description: >
+      Contractual obligations, rights, and duties defined
+      in the Agreement for Sale / Builder Buyer Agreement.
+    keywords:
+      - agreement
+      - allottee
+      - promoter
+      - obligation
+      - covenant
+      - clause
+      - schedule
+    retrieval:
+      index: model_bba
+      filters:
+        doc_type:
+          - model_bba
+
+  # -------------------------------------------------
+  # MAINTENANCE & COMMON AREAS
+  # -------------------------------------------------
+  maintenance_and_common_areas:
+    description: >
+      Maintenance charges, common areas, and handover
+      to association of allottees.
+    keywords:
+      - maintenance
+      - common areas
+      - association of allottees
+      - facilities
+      - services
+    retrieval:
+      index: model_bba
+      filters:
+        doc_type:
+          - model_bba
+
+  # -------------------------------------------------
+  # GOVERNING LAW / JURISDICTION
+  # -------------------------------------------------
+  governing_law:
+    description: >
+      Clauses specifying governing law, jurisdiction,
+      and dispute resolution forum.
+    keywords:
+      - governing law
+      - jurisdiction
+      - court
+      - authority
+      - adjudicating officer
+    retrieval:
+      index: rera_act
+      filters:
+        doc_type:
+          - act

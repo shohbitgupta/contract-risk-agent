@@ -1,0 +1,10 @@
+india_real_estate:
+  mandatory_intents:
+    - delay_possession
+    - refund_withdrawal
+    - interest_penalty
+    - force_majeure
+    - liability_limitation
+    - payment_schedule
+    - defect_liability
+    - jurisdiction_dispute

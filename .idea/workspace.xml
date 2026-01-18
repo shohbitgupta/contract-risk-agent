@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="7eb0a68d-0a23-4613-ab9c-73c346108b0e" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/.idea/contract-risk-agent.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/RAG/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/RAG/legal_data_chunker.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/RAG/metadata_emitter.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/RAG/models.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/RAG/schemas.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/RAG/user_contract_chunker.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agents/clause_understanding_agent.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agents/intent_rules_engine.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agents/legal_details_drafter_agent.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agents/legal_details_verifier_agent.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agents/legal_explanation_agent.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/agents/llm_analyzer_facade.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/audit/audit_logger.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/configs/jurisdiction_requirements.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/configs/real_state_intent_rules.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/configs/settings.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/ingestion/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/ingestion/config/registry.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/ingestion/contract_parser/contract_ingestion.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/ingestion/contract_parser/pdf_text_extractor.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/ingestion/ingestion_pipeline.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/ingestion/rera_index_builder.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retrieval/retrieval_orchestrator.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/scripts/juridiction_intent_rules_validator.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/scripts/prepare_rera_sources.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/tools/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/tools/checksum.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/tools/llm_response_cache.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/tools/logger.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/tools/pdf_crawler.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vector_index/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vector_index/embedding.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vector_index/faiss_index.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vector_index/index_base.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vector_index/index_registry.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vector_index/index_writer.py" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 0
+}</component>
+  <component name="ProjectId" id="38289K0S2tvGCLdrNhwu9W8lZLr" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Python.contract-risk-agent.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "main",
+    "last_opened_file_path": "/Users/sshobhitggupta/Documents/contract-risk-agent/src/tools",
+    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable"
+  }
+}]]></component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/src/tools" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/src/ingestion" />
+      <recent name="$PROJECT_DIR$/public/contract" />
+      <recent name="$PROJECT_DIR$/src/ingestion/config" />
+    </key>
+  </component>
+  <component name="RunManager">
+    <configuration name="contract-risk-agent" type="PythonConfigurationType" factoryName="Python">
+      <module name="contract-risk-agent" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="SDK_NAME" value="Python 3.13 (contract-risk-agent)" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/src/main.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-python-sdk-41e8cd69c857-64d779b69b7a-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-251.26927.90" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="7eb0a68d-0a23-4613-ab9c-73c346108b0e" name="Changes" comment="" />
+      <created>1767986152442</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1767986152442</updated>
+    </task>
+    <servers />
+  </component>
+</project>
