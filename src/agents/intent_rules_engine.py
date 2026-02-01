@@ -68,11 +68,16 @@ class IntentRuleEngine:
             intent_name=matched["name"]
         )
 
+        risk_level = self._evaluate_risk_level(
+            intent_name=matched["name"],
+            clause_text=clause_text
+        )
+
         return ClauseUnderstandingResult(
             clause_id=clause_id,
             intent=matched["name"],
             obligation_type=obligation_type,
-            risk_level="UNKNOWN",                 # resolved later
+            risk_level=risk_level,
             needs_legal_validation=True,          # always true here
             retrieval_queries=retrieval_queries
         )
@@ -154,3 +159,60 @@ class IntentRuleEngine:
             return "SHARED_OBLIGATION"
 
         return "CONTRACTUAL_TERM"
+
+    def _evaluate_risk_level(
+        self,
+        intent_name: str,
+        clause_text: str
+    ) -> str:
+        """
+        Evaluate risk level based on intent type and clause content.
+
+        Risk levels:
+        - HIGH: Penalties, termination, liability limitations, conflicting terms
+        - MEDIUM: Financial obligations, dates, interest rates
+        - LOW: Descriptive, definitions, standard terms
+
+        Example:
+            >>> self._evaluate_risk_level("possession_delay", "delay shall result in penalty")
+            'high'
+            >>> self._evaluate_risk_level("agreement_terms", "The allottee shall pay installments")
+            'medium'
+        """
+        text_lower = clause_text.lower()
+
+        # HIGH RISK indicators
+        high_risk_keywords = {
+            "penalty", "forfeit", "termination", "cancel", "liability",
+            "indemnify", "waiver", "exclusion", "disclaim", "not liable",
+            "no liability", "sole discretion", "final", "binding",
+            "non-refundable", "forfeited"
+        }
+
+        # Intent-based risk mapping
+        high_risk_intents = {
+            "refund_and_withdrawal",  # Financial impact
+            "interest_and_compensation",  # Monetary obligations
+            "governing_law"  # Jurisdiction disputes
+        }
+
+        medium_risk_intents = {
+            "possession_delay",  # Time-sensitive
+            "defect_liability",  # Quality issues
+            "alteration_and_change",  # Plan modifications
+            "maintenance_and_common_areas"  # Ongoing obligations
+        }
+
+        # Check for high-risk keywords
+        if any(kw in text_lower for kw in high_risk_keywords):
+            return "high"
+
+        # Check intent-based risk
+        if intent_name in high_risk_intents:
+            return "high"
+
+        if intent_name in medium_risk_intents:
+            return "medium"
+
+        # Default to low for standard terms
+        return "low"
