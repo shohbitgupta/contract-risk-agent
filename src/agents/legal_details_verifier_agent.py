@@ -38,8 +38,7 @@ class OpenAIRefiner:
         evidence_mapping: List["OpenAIRefiner.EvidenceMapping"] = Field(default_factory=list)
 
         @field_validator("alignment", mode="before")
-        @classmethod
-        def normalize_alignment(cls, value: str) -> str:
+        def normalize_alignment(cls, value):
             text = str(value or "").lower().strip()
             mapping = {
                 "aligned": "aligned",
@@ -55,8 +54,7 @@ class OpenAIRefiner:
             return mapping.get(text, text) if text else ""
 
         @field_validator("key_findings", mode="before")
-        @classmethod
-        def normalize_key_findings(cls, value):
+        def normalize_key_findings(cls, value) -> List[str]:
             if value is None:
                 return []
             if isinstance(value, str):
