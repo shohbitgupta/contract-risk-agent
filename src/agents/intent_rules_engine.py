@@ -7,13 +7,19 @@ from RAG.models import ClauseUnderstandingResult
 
 class IntentRuleEngine:
     """
-    YAML-driven intent resolution engine.
+    YAML-driven intent resolution engine for clause classification.
 
     Responsibilities:
     - Match clause text to intent
     - Classify obligation type (high-level)
     - Emit retrieval instructions
     - Provide safe defaults for downstream legal analysis
+
+    Example:
+        >>> engine = IntentRuleEngine(Path("src/configs/real_state_intent_rules.yaml"))
+        >>> result = engine.analyze("1.2", "Delay in possession by promoter...")
+        >>> result.intent
+        'possession_delay'
     """
 
     def __init__(self, rules_path: Path):
@@ -40,7 +46,15 @@ class IntentRuleEngine:
         clause_text: str
     ) -> ClauseUnderstandingResult:
         """
-        Analyze clause and emit structured understanding.
+        Analyze a clause and emit structured understanding.
+
+        Returns:
+            ClauseUnderstandingResult with intent, obligation type,
+            and retrieval queries.
+
+        Example:
+            >>> engine.analyze("5.1", "Force majeure events include flood...")
+            ClauseUnderstandingResult(...)
         """
 
         matched = self._match_intent(clause_text)
@@ -71,6 +85,10 @@ class IntentRuleEngine:
         """
         Keyword-based intent matching.
         First match wins.
+
+        Example:
+            >>> self._match_intent("refund with interest")["name"]
+            'refund_and_withdrawal'
         """
 
         text = clause_text.lower()
@@ -96,6 +114,10 @@ class IntentRuleEngine:
     ) -> List[Dict[str, Any]]:
         """
         Build retrieval queries directly from YAML.
+
+        Example:
+            >>> self._build_retrieval_queries("delay in possession", cfg)
+            [{'index': 'rera_act', 'intent': 'delay in possession', 'filters': {...}}]
         """
 
         retrieval = intent_cfg.get("retrieval")
@@ -112,6 +134,10 @@ class IntentRuleEngine:
         """
         Lightweight obligation classification.
         This is NOT legal reasoning.
+
+        Example:
+            >>> self._infer_obligation_type("defect_liability")
+            'PROMOTER_OBLIGATION'
         """
 
         if intent_name in {

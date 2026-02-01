@@ -13,6 +13,10 @@ def get_chunk_metadata(
 ) -> dict:
     """
     Emits normalized metadata dictionary for each chunk.
+
+    Example:
+        >>> get_chunk_metadata(doc_type="rera_act", state=None, source="RERA Act",
+        ...                    version="2016", section_or_clause="Section 18")
     """
 
     metadata = ChunkMetadata(

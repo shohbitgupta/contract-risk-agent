@@ -26,7 +26,7 @@ intents:
       index: rera_act
       filters:
         doc_type:
-          - act
+          - rera_act
     legal_sections:
       - "Section 18"
 
@@ -48,7 +48,7 @@ intents:
       index: rera_act
       filters:
         doc_type:
-          - act
+          - rera_act
     legal_sections:
       - "Section 18"
 
@@ -70,7 +70,7 @@ intents:
       index: rera_rules
       filters:
         doc_type:
-          - rules
+          - state_rule
 
   # -------------------------------------------------
   # FORCE MAJEURE
@@ -90,7 +90,7 @@ intents:
       index: rera_act
       filters:
         doc_type:
-          - act
+          - rera_act
 
   # -------------------------------------------------
   # DEFECT LIABILITY
@@ -109,7 +109,7 @@ intents:
       index: rera_act
       filters:
         doc_type:
-          - act
+          - rera_act
     legal_sections:
       - "Section 14"
 
@@ -131,7 +131,7 @@ intents:
       index: rera_act
       filters:
         doc_type:
-          - act
+          - rera_act
     legal_sections:
       - "Section 14"
 
@@ -154,7 +154,7 @@ intents:
       index: model_bba
       filters:
         doc_type:
-          - model_bba
+          - model_agreement
 
   # -------------------------------------------------
   # MAINTENANCE & COMMON AREAS
@@ -173,7 +173,7 @@ intents:
       index: model_bba
       filters:
         doc_type:
-          - model_bba
+          - model_agreement
 
   # -------------------------------------------------
   # GOVERNING LAW / JURISDICTION
@@ -192,4 +192,4 @@ intents:
       index: rera_act
       filters:
         doc_type:
-          - act
+          - rera_act

@@ -6,6 +6,11 @@ class LocalLLMAdapter:
     """
     Local LLM adapter using Llama 3.1 8B via Ollama.
     Generates a structured draft explanation.
+
+    Example:
+        >>> adapter = LocalLLMAdapter()
+        >>> adapter.generate_draft("Clause text", "Evidence text")
+        'Draft explanation...'
     """
 
     MODEL = "llama3.1:8b"
@@ -18,6 +23,13 @@ class LocalLLMAdapter:
         """
         Generate a first-pass legal explanation draft.
         No final compliance judgment.
+
+        Returns:
+            Draft text (not guaranteed to be JSON).
+
+        Example:
+            >>> adapter.generate_draft("Delay clause", "Evidence 1...")
+            'The clause indicates...'
         """
 
         prompt = textwrap.dedent(f"""

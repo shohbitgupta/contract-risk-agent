@@ -1,10 +1,11 @@
 india_real_estate:
   mandatory_intents:
-    - delay_possession
-    - refund_withdrawal
-    - interest_penalty
+    - possession_delay
+    - refund_and_withdrawal
+    - interest_and_compensation
     - force_majeure
-    - liability_limitation
-    - payment_schedule
     - defect_liability
-    - jurisdiction_dispute
+    - alteration_and_change
+    - agreement_terms
+    - maintenance_and_common_areas
+    - governing_law

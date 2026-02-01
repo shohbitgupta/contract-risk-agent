@@ -6,6 +6,10 @@ from RAG.metadata_emitter import get_chunk_metadata
 class LegalChunker:
     """
     Chunker for legal documents based on document type.
+
+    Example:
+        >>> chunker = LegalChunker()
+        >>> chunks = chunker.chunk(text="Section 1 ...", doc_type="rera_act", source="rera_act", version="2016")
     """
 
     # -----------------------------
@@ -23,6 +27,10 @@ class LegalChunker:
     ) -> List[Tuple[str, dict]]:
         """
         Returns list of (chunk_text, metadata_dict)
+
+        Example:
+            >>> chunker.chunk(text="Clause 1 ...", doc_type="model_agreement", source="bba", version="2024")
+            [('Clause 1 ...', {...})]
         """
 
         if doc_type in {"rera_act", "state_rule"}:

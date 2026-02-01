@@ -21,6 +21,15 @@ SESSION.headers.update({
 
 
 def crawl_and_download(base_url: str, save_dir: Path):
+    """
+    Crawl a web page and download all linked PDFs.
+
+    Returns:
+        Dict with downloaded/skipped/failed lists.
+
+    Example:
+        >>> crawl_and_download("https://example.com/docs", Path("data/pdfs"))
+    """
     logger.info(f"Starting crawl: {base_url}")
 
     results = {
@@ -109,6 +118,12 @@ def crawl_and_download(base_url: str, save_dir: Path):
 
 
 def download_single_pdf(pdf_url: str, save_dir: Path):
+    """
+    Download a single PDF and write it to disk with checksum.
+
+    Returns:
+        Dict with status and file path.
+    """
     # Registry location
     file_name = pdf_url.split("=")[-1]
     file_path = save_dir / file_name

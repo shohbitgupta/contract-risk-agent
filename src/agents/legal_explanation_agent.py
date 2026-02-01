@@ -22,6 +22,11 @@ logger = setup_logger("legal-explanation-agent")
 class LegalExplanationAgent:
     """
     Evidence-bound, guardrailed legal explanation agent.
+
+    Example:
+        >>> agent = LegalExplanationAgent()
+        >>> agent.explain(clause, clause_result, evidence_pack)
+        ExplanationResult(...)
     """
 
     MODEL = "gpt-4o-mini"
@@ -54,6 +59,12 @@ class LegalExplanationAgent:
     }
 
     def __init__(self):
+        """
+        Initialize the agent, cache, and LLM facade.
+
+        Raises:
+            RuntimeError if OPENAI_API_KEY is missing.
+        """
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise RuntimeError(
@@ -78,6 +89,16 @@ class LegalExplanationAgent:
         clause_result: ClauseUnderstandingResult,
         evidence_pack: EvidencePack
     ) -> ExplanationResult:
+        """
+        Produce a structured explanation for a single clause.
+
+        Uses cache when possible, otherwise calls the LLM facade and validates
+        the output against strict schema constraints.
+
+        Example:
+            >>> agent.explain(clause, clause_result, evidence_pack).alignment
+            'partially_aligned'
+        """
 
         cache_key = self.cache.build_cache_key(
             clause_text=clause.text,
@@ -134,6 +155,12 @@ class LegalExplanationAgent:
         clause_result: ClauseUnderstandingResult,
         evidence_pack: EvidencePack
     ) -> str:
+        """
+        Construct the evidence prompt block sent to the LLM.
+
+        Returns:
+            A single string containing clause text and evidence snippets.
+        """
 
         evidence_block = ""
         for i, ev in enumerate(evidence_pack.evidences, start=1):
@@ -169,6 +196,12 @@ LEGAL EVIDENCE:
         output: str,
         evidence_pack: EvidencePack
     ) -> Dict:
+        """
+        Parse JSON output and enforce alignment and evidence references.
+
+        Raises:
+            ValueError if JSON is invalid or evidence IDs are hallucinated.
+        """
 
         try:
             parsed = json.loads(output)
@@ -200,6 +233,12 @@ LEGAL EVIDENCE:
         parsed: Dict,
         evidence_pack: EvidencePack
     ) -> float:
+        """
+        Compute a deterministic quality score from evidence features.
+
+        Returns:
+            Score in [0.0, 1.0].
+        """
 
         score = 0.0
 
@@ -208,9 +247,9 @@ LEGAL EVIDENCE:
             score += 0.3
 
         # Authority strength
-        if any(ev.metadata["doc_type"] == "rera_act" for ev in evidence_pack.evidences):
+        if any(ev.metadata.get("doc_type") == "rera_act" for ev in evidence_pack.evidences):
             score += 0.3
-        elif any(ev.metadata["doc_type"] == "state_rule" for ev in evidence_pack.evidences):
+        elif any(ev.metadata.get("doc_type") == "state_rule" for ev in evidence_pack.evidences):
             score += 0.2
 
         # Jurisdiction correctness
@@ -225,6 +264,9 @@ LEGAL EVIDENCE:
     # ------------------------------------------------------------------
 
     def _build_citations(self, evidence_pack: EvidencePack) -> List[Dict]:
+        """
+        Convert evidence items into a lightweight citation list.
+        """
         return [
             {
                 "source": ev.source,
@@ -234,6 +276,9 @@ LEGAL EVIDENCE:
         ]
 
     def _disclaimer(self) -> str:
+        """
+        Return the standard disclaimer appended to results.
+        """
         return (
             "This explanation is for informational purposes only and does not "
             "constitute legal advice. Consult a qualified legal professional."
@@ -244,6 +289,9 @@ LEGAL EVIDENCE:
             clause_result: ClauseUnderstandingResult,
             evidence_pack: EvidencePack
     ) -> str:
+        """
+        Compute a coarse alignment label when evidence exists.
+        """
         if not evidence_pack.evidences:
             return "insufficient_evidence"
 

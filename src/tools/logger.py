@@ -6,6 +6,15 @@ DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
 def setup_logger(name: str, level: int = logging.INFO) -> logging.Logger:
+    """
+    Create a configured console logger.
+
+    Uses stderr so MCP stdio JSON-RPC output remains clean.
+
+    Example:
+        >>> logger = setup_logger("contract-risk")
+        >>> logger.info("ready")
+    """
     logger = logging.getLogger(name)
     logger.setLevel(level)
 
@@ -15,7 +24,8 @@ def setup_logger(name: str, level: int = logging.INFO) -> logging.Logger:
 
     formatter = logging.Formatter(LOG_FORMAT, DATE_FORMAT)
 
-    console_handler = logging.StreamHandler(sys.stdout)
+    # Use stderr so MCP stdio JSON-RPC stays clean on stdout.
+    console_handler = logging.StreamHandler(sys.stderr)
     console_handler.setFormatter(formatter)
     console_handler.setLevel(level)
 

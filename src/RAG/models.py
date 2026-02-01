@@ -4,6 +4,13 @@ from typing import Optional, Dict, List
 
 @dataclass
 class ChunkMetadata:
+    """
+    Metadata attached to legal evidence chunks.
+
+    Example:
+        >>> ChunkMetadata(doc_type="rera_act", jurisdiction="india", state=None,
+        ...               source="RERA Act", version="2016", section_or_clause="Section 18")
+    """
     doc_type: str                 # RERA_ACT | state_rule | notification | model_agreement
     jurisdiction: str             # india
     state: Optional[str]          # maharashtra | karnataka | None
@@ -19,6 +26,9 @@ class UserContractChunk:
     """
     Ephemeral chunk representing a single clause/obligation
     from a user-uploaded contract.
+
+    Example:
+        >>> UserContractChunk("1.1", "Possession clause...")
     """
 
     clause_id: str                 # e.g. "1.1", "12.4", "UNNUM_3"
@@ -29,6 +39,14 @@ class UserContractChunk:
 
 @dataclass
 class ExplanationResult:
+    """
+    Final structured output returned to UI/API consumers.
+
+    Example:
+        >>> ExplanationResult(clause_id="1.1", alignment="aligned", risk_level="low",
+        ...                  summary="...", detailed_explanation="...", citations=[], quality_score=0.8,
+        ...                  disclaimer="...")
+    """
     clause_id: str
     alignment: str                 # aligned | partially_aligned | conflicting | insufficient_evidence
     risk_level: str
@@ -45,6 +63,10 @@ class ClauseUnderstandingResult:
     Output of the Clause Understanding Agent.
     This is a structured interpretation of a single contract clause,
     NOT a legal conclusion.
+
+    Example:
+        >>> ClauseUnderstandingResult("1.1", "possession_delay", "PROMOTER_OBLIGATION",
+        ...                           "low", True, retrieval_queries=[])
     """
 
     clause_id: str
@@ -64,6 +86,9 @@ class ClauseUnderstandingResult:
 class Evidence:
     """
     A single piece of retrieved legal or contractual evidence.
+
+    Example:
+        >>> Evidence(source="RERA Act", section_or_clause="Section 18", text="...", metadata={})
     """
 
     source: str                        # e.g. RERA Act 2016, MahaRERA Model Agreement
@@ -76,6 +101,9 @@ class Evidence:
 class EvidencePack:
     """
     Collection of evidence retrieved for a single user clause.
+
+    Example:
+        >>> EvidencePack(clause_id="1.1", intent="possession_delay", evidences=[])
     """
 
     clause_id: str

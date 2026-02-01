@@ -21,6 +21,11 @@ class RetrievalOrchestrator:
     - Query appropriate legal vector indexes
     - Apply strict metadata filters
     - Return raw legal evidence (no reasoning, no LLM)
+
+    Example:
+        >>> orchestrator = RetrievalOrchestrator(IndexRegistry(Path("src/data/vector_indexes"), 384))
+        >>> orchestrator.retrieve(clause_result, "uttar_pradesh")
+        EvidencePack(...)
     """
 
     TOP_K = 5
@@ -40,6 +45,12 @@ class RetrievalOrchestrator:
         clause_result: ClauseUnderstandingResult,
         state: str
     ) -> EvidencePack:
+        """
+        Retrieve legal evidence for a clause intent.
+
+        Returns:
+            EvidencePack with matched evidence chunks.
+        """
 
         evidences: List[Evidence] = []
 
@@ -70,7 +81,8 @@ class RetrievalOrchestrator:
                     if not self._passes_filters(
                         doc.metadata,
                         query.get("filters", {}),
-                        state
+                        state,
+                        index_name
                     ):
                         continue
 
@@ -105,6 +117,10 @@ class RetrievalOrchestrator:
     ) -> List[str]:
         """
         Decide which indexes to query based on intent.
+
+        Example:
+            >>> self._resolve_indexes({"index": "rera_act"}, indexes)
+            ['rera_act']
         """
         requested = query.get("index")
 
@@ -123,10 +139,14 @@ class RetrievalOrchestrator:
         self,
         metadata: dict,
         filters: dict,
-        state: str
+        state: str,
+        index_name: str
     ) -> bool:
         """
         Hard filters to prevent legal contamination.
+
+        Returns:
+            True if metadata satisfies filters.
         """
 
         # State filter (central laws may omit state)
@@ -137,7 +157,25 @@ class RetrievalOrchestrator:
         # Document type filter (optional)
         allowed_doc_types = filters.get("doc_type")
         if allowed_doc_types:
-            if metadata.get("doc_type") not in allowed_doc_types:
+            inferred_doc_type = metadata.get("doc_type") or self._infer_doc_type(index_name)
+            if inferred_doc_type not in allowed_doc_types:
                 return False
 
         return True
+
+    def _infer_doc_type(self, index_name: str) -> str | None:
+        """
+        Infer doc_type from index name when metadata is missing.
+
+        Example:
+            >>> self._infer_doc_type("rera_rules")
+            'state_rule'
+        """
+        mapping = {
+            "rera_act": "rera_act",
+            "rera_rules": "state_rule",
+            "model_bba": "model_agreement",
+            "circulars": "notification",
+            "case_law": "case_law"
+        }
+        return mapping.get(index_name)

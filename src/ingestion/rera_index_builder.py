@@ -35,7 +35,13 @@ LEGAL_SOURCES = {
 # CHUNKING (LEGAL SAFE)
 # =========================================================
 
-def chunk_legal_text(text: str, source: str) -> List[IndexDocument]:
+def chunk_legal_text(
+    text: str,
+    source: str,
+    *,
+    doc_type: str,
+    state: str | None
+) -> List[IndexDocument]:
     chunks: List[IndexDocument] = []
 
     splits = re.split(
@@ -48,12 +54,21 @@ def chunk_legal_text(text: str, source: str) -> List[IndexDocument]:
         if len(content) < 200:
             continue
 
+        section_match = re.match(
+            r"^(Section|Rule|Clause)\s+\d+[A-Za-z]*",
+            content
+        )
+        section_id = section_match.group(0) if section_match else None
+
         chunks.append(
             IndexDocument(
                 content=content,
                 metadata={
                     "source": source,
-                    "chunk_id": f"{source}_{i}"
+                    "chunk_id": f"{source}_{i}",
+                    "doc_type": doc_type,
+                    "state": state,
+                    "section": section_id
                 }
             )
         )
@@ -138,7 +153,9 @@ def main():
     # -----------------------------
     act_docs = chunk_legal_text(
         load_text_file(LEGAL_SOURCES["rera_act"]),
-        "rera_act"
+        "rera_act",
+        doc_type="rera_act",
+        state=None
     )
     build_index("rera_act", act_docs, embedding_model)
 
@@ -147,7 +164,9 @@ def main():
     # -----------------------------
     rules_docs = chunk_legal_text(
         load_text_file(LEGAL_SOURCES["rera_rules"]),
-        "rera_rules"
+        "rera_rules",
+        doc_type="state_rule",
+        state=STATE
     )
     build_index("rera_rules", rules_docs, embedding_model)
 
@@ -156,7 +175,9 @@ def main():
     # -----------------------------
     bba_docs = chunk_legal_text(
         load_text_file(LEGAL_SOURCES["model_bba"]),
-        "model_bba"
+        "model_bba",
+        doc_type="model_agreement",
+        state=STATE
     )
     build_index("model_bba", bba_docs, embedding_model)
 

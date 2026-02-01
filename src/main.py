@@ -48,6 +48,10 @@ load_dotenv()
 class ContractRiskAnalysisSystem:
     """
     End-to-end orchestrator for real estate contract risk analysis.
+
+    Example:
+        >>> system = ContractRiskAnalysisSystem(index_registry, intent_rules_path)
+        >>> results = system.analyze_contract("Clause text...", "uttar_pradesh")
     """
 
     def __init__(
@@ -55,6 +59,9 @@ class ContractRiskAnalysisSystem:
         index_registry: IndexRegistry,
         intent_rules_path: Path
     ):
+        """
+        Initialize pipeline components and dependency wiring.
+        """
         self.chunker = UserContractChunker()
 
         self.clause_agent = ClauseUnderstandingAgent(
@@ -75,6 +82,12 @@ class ContractRiskAnalysisSystem:
         contract_text: str,
         state: str
     ) -> List[ExplanationResult]:
+        """
+        Run the full clause → retrieval → explanation pipeline.
+
+        Returns:
+            List of ExplanationResult objects.
+        """
 
         logger.info("Starting contract analysis")
         logger.info(f"Target state: {state}")
@@ -119,6 +132,12 @@ class ContractRiskAnalysisSystem:
 # =========================================================
 
 def main(pdf_url: str) -> List[ExplanationResult]:
+    """
+    CLI entry to run analysis from a PDF URL.
+
+    Example:
+        >>> main("https://example.com/contract.pdf")
+    """
     logger.info(f"Received contract PDF URL: {pdf_url}")
 
     # -------------------------------------------------

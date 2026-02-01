@@ -1,6 +1,11 @@
 
 class PDFTextExtractionError(Exception):
-    pass
+    """
+    Raised when PDF extraction fails or yields unusable content.
+
+    Example:
+        >>> raise PDFTextExtractionError("Scanned PDF requires OCR")
+    """
 
 
 import re
@@ -15,6 +20,10 @@ class UserContractPDFExtractor:
     """
     Extracts clean, legally safe text from Builder Buyer Agreement PDFs.
     Supports both local files and remote PDF URLs.
+
+    Example:
+        >>> extractor = UserContractPDFExtractor()
+        >>> text = extractor.extract_from_url("https://example.com/contract.pdf")
     """
 
     MIN_TEXT_LENGTH = 1000  # heuristic threshold
@@ -26,6 +35,9 @@ class UserContractPDFExtractor:
     def extract_from_url(self, pdf_url: str) -> str:
         """
         Downloads PDF from URL and extracts normalized text.
+
+        Returns:
+            Extracted text as a single string.
         """
         pdf_path = self._download_pdf(pdf_url)
         return self.extract_from_file(pdf_path)
@@ -33,6 +45,9 @@ class UserContractPDFExtractor:
     def extract_from_file(self, pdf_path: Path) -> str:
         """
         Extract text from a local PDF file.
+
+        Raises:
+            PDFTextExtractionError if extraction fails or text is too short.
         """
         if not pdf_path.exists():
             raise FileNotFoundError(f"PDF not found: {pdf_path}")
@@ -62,6 +77,9 @@ class UserContractPDFExtractor:
     def _download_pdf(self, pdf_url: str) -> Path:
         """
         Downloads PDF from URL into a temporary file.
+
+        Returns:
+            Path to the downloaded temp PDF.
         """
         try:
             response = requests.get(pdf_url, timeout=30)
@@ -88,6 +106,8 @@ class UserContractPDFExtractor:
     def _normalize(self, text: str) -> str:
         """
         Normalize text while preserving legal structure.
+
+        This trims extra whitespace and removes page footers.
         """
 
         # Normalize line endings

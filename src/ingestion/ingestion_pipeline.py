@@ -9,10 +9,13 @@ logger = setup_logger("ingestion_pipeline")
 
 def run_ingestion(state: str):
     """
-        Runs legal document ingestion for a given state.
-        Downloads central + state-specific RERA documents
-        into project-local data directory.
-        """
+    Runs legal document ingestion for a given state.
+    Downloads central + state-specific RERA documents
+    into project-local data directory.
+
+    Example:
+        >>> run_ingestion("uttar_pradesh")
+    """
 
     # --------------------------------------------------
     # 1. Resolve paths safely

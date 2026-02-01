@@ -10,7 +10,7 @@ from RAG.user_contract_chunker import ContractChunk
 
 class ClauseUnderstandingAgent:
     """
-    Clause understanding layer.
+    Clause understanding layer that maps a clause to a legal intent.
 
     Responsibilities:
     - Accept a parsed contract chunk
@@ -21,6 +21,12 @@ class ClauseUnderstandingAgent:
     - DOES NOT select indexes
     - DOES NOT apply legal reasoning
     - DOES NOT modify retrieval queries
+
+    Example:
+        >>> agent = ClauseUnderstandingAgent(Path("src/configs/real_state_intent_rules.yaml"))
+        >>> result = agent.analyze(ContractChunk("1.1", "Delay in possession...", ChunkType.CLAUSE), "uttar_pradesh")
+        >>> result.intent
+        'possession_delay'
     """
 
     def __init__(self, rules_path: Path):
@@ -36,7 +42,7 @@ class ClauseUnderstandingAgent:
         state: str
     ) -> ClauseUnderstandingResult:
         """
-        Analyze a single contract clause.
+        Analyze a single contract clause and return structured intent output.
 
         Parameters:
         - clause: ContractChunk (id + text)
@@ -44,6 +50,11 @@ class ClauseUnderstandingAgent:
 
         Returns:
         - ClauseUnderstandingResult
+
+        Example:
+            >>> clause = ContractChunk("2.1", "Refund on cancellation...", ChunkType.CLAUSE)
+            >>> agent.analyze(clause, "uttar_pradesh").intent
+            'refund_and_withdrawal'
         """
 
         # Delegate intent resolution completely to rule engine

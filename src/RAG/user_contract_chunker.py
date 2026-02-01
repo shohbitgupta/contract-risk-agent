@@ -5,7 +5,13 @@ from enum import Enum
 
 
 class ChunkType(Enum):
-    """Classifies the structural role of the chunk."""
+    """
+    Classifies the structural role of the chunk.
+
+    Example:
+        >>> ChunkType.CLAUSE.value
+        'clause'
+    """
     CLAUSE = "clause"  # Standard numbered clause (1.1, 12.4)
     DEFINITION = "definition"  # Specific definition entries (e.g., "Act means...")
     SCHEDULE = "schedule"  # Annexures, Schedules, Tables
@@ -15,7 +21,13 @@ class ChunkType(Enum):
 
 
 class RiskLevel(Enum):
-    """Risk severity based on semantic tagging."""
+    """
+    Risk severity based on semantic tagging.
+
+    Example:
+        >>> RiskLevel.HIGH.value
+        'high'
+    """
     HIGH = "high"  # Penalties, Termination, Liability
     MEDIUM = "medium"  # Financials, Dates
     LOW = "low"  # Descriptive, Boilerplate
@@ -26,6 +38,10 @@ class RiskLevel(Enum):
 class ContractChunk:
     """
     Domain object representing a single distinct unit of the contract.
+
+    Example:
+        >>> ContractChunk("1.1", "Possession clause...", ChunkType.CLAUSE)
+        ContractChunk(...)
     """
     chunk_id: str  # e.g., "1.1", "SCHEDULE-A", "NOTE_1"
     text: str  # The raw text content
@@ -41,7 +57,13 @@ class ContractChunk:
     risk_level: RiskLevel = RiskLevel.UNKNOWN
 
     def to_dict(self):
-        """Helper for serialization (e.g., JSON response)."""
+        """
+        Convert the chunk into a serializable dict.
+
+        Example:
+            >>> ContractChunk("1.1", "text", ChunkType.CLAUSE).to_dict()["id"]
+            '1.1'
+        """
         return {
             "id": self.chunk_id,
             "type": self.chunk_type.value,
@@ -60,6 +82,12 @@ class UserContractChunker:
     """
     Optimized Chunker for Indian Real Estate Contracts (BBA / AFS / RERA).
     Produces structurally correct ContractChunk objects.
+
+    Example:
+        >>> chunker = UserContractChunker()
+        >>> chunks = chunker.chunk("1. DEFINITIONS\\n2. POSSESSION ...")
+        >>> len(chunks) > 0
+        True
     """
 
     # --------------------------------------------------
@@ -100,6 +128,12 @@ class UserContractChunker:
     # --------------------------------------------------
 
     def chunk(self, text: str) -> List[ContractChunk]:
+        """
+        Split raw contract text into structurally labeled chunks.
+
+        Returns:
+            List of ContractChunk objects.
+        """
         normalized = self._normalize(text)
         raw_clauses = self._split_into_raw_clauses(normalized)
 
@@ -133,6 +167,11 @@ class UserContractChunker:
     # --------------------------------------------------
 
     def _normalize(self, text: str) -> str:
+        """
+        Normalize text while preserving legal structure.
+
+        This cleans line endings and standardizes schedule headers.
+        """
         text = text.replace("\r", "")
         text = re.sub(
             r"Schedule\s*-\s*([A-Z])",
@@ -152,14 +191,21 @@ class UserContractChunker:
     # --------------------------------------------------
 
     def _split_into_raw_clauses(self, text: str):
+        """
+        Detect clause boundaries using regex patterns and semantic headers.
+        """
         combined = "|".join(self.CLAUSE_PATTERNS)
-        regex = re.compile(combined, re.MULTILINE)
+        regex = re.compile(combined, re.MULTILINE | re.IGNORECASE)
 
         matches = list(regex.finditer(text))
 
         # Inject RERA semantic headers
         for header in self.RERA_SEMANTIC_HEADERS:
-            for match in re.finditer(rf"^{header}\b", text, re.MULTILINE):
+            for match in re.finditer(
+                rf"^{header}\b",
+                text,
+                re.MULTILINE | re.IGNORECASE
+            ):
                 matches.append(match)
 
         if len(matches) < 3:
@@ -169,6 +215,9 @@ class UserContractChunker:
         return self._split_by_matches(text, matches)
 
     def _split_by_matches(self, text: str, matches):
+        """
+        Split text into clause segments based on regex match spans.
+        """
         clauses = []
         for i, match in enumerate(matches):
             start = match.start()
@@ -187,6 +236,9 @@ class UserContractChunker:
         chunk_type: ChunkType,
         title: Optional[str]
     ) -> ContractChunk:
+        """
+        Construct a ContractChunk with metadata fields populated.
+        """
 
         return ContractChunk(
             chunk_id=cid,
@@ -200,9 +252,15 @@ class UserContractChunker:
         )
 
     def _confidence_for(self, cid: str) -> float:
+        """
+        Heuristic confidence score for chunk ids.
+        """
         return 0.9 if cid and cid[0].isalnum() else 0.6
 
     def _detect_chunk_type(self, cid: str) -> ChunkType:
+        """
+        Infer chunk type from the clause id format.
+        """
         cid_upper = cid.upper()
         if "SCHEDULE" in cid_upper or "ANNEXURE" in cid_upper:
             return ChunkType.SCHEDULE
@@ -217,6 +275,9 @@ class UserContractChunker:
     # --------------------------------------------------
 
     def _extract_title(self, text: str) -> Optional[str]:
+        """
+        Extract a short title/header from the clause text.
+        """
         lines = text.split("\n")
         if not lines:
             return None
@@ -242,6 +303,9 @@ class UserContractChunker:
     # --------------------------------------------------
 
     def _sub_chunk_definitions(self, parent_id: str, text: str) -> List[ContractChunk]:
+        """
+        Split long definition blocks into individual definition chunks.
+        """
         pattern = r"(^\([a-z0-9]+\)\s)"
         regex = re.compile(pattern, re.MULTILINE)
         matches = list(regex.finditer(text))
@@ -277,6 +341,9 @@ class UserContractChunker:
         return chunks
 
     def _sub_chunk_schedule(self, cid: str, text: str) -> List[ContractChunk]:
+        """
+        Split long schedules into smaller parts.
+        """
         parts = re.split(r"\n\s*(\d+\.|\([a-z]\)|-)\s+", text)
 
         if len(parts) < 3:
@@ -301,6 +368,9 @@ class UserContractChunker:
     # --------------------------------------------------
 
     def _fallback_split(self, text: str):
+        """
+        Fallback paragraph split when clause patterns are not detected.
+        """
         paragraphs = text.split("\n\n")
         clauses = []
 
