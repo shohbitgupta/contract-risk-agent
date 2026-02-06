@@ -21,12 +21,6 @@ class ClauseUnderstandingAgent:
     - DOES NOT select indexes
     - DOES NOT apply legal reasoning
     - DOES NOT modify retrieval queries
-
-    Example:
-        >>> agent = ClauseUnderstandingAgent(Path("src/configs/real_state_intent_rules.yaml"))
-        >>> result = agent.analyze(ContractChunk("1.1", "Delay in possession...", ChunkType.CLAUSE), "uttar_pradesh")
-        >>> result.intent
-        'possession_delay'
     """
 
     def __init__(self, rules_path: Path):
@@ -50,17 +44,25 @@ class ClauseUnderstandingAgent:
 
         Returns:
         - ClauseUnderstandingResult
-
-        Example:
-            >>> clause = ContractChunk("2.1", "Refund on cancellation...", ChunkType.CLAUSE)
-            >>> agent.analyze(clause, "uttar_pradesh").intent
-            'refund_and_withdrawal'
         """
 
-        # Delegate intent resolution completely to rule engine
-        result = self.intent_engine.analyze(
-            clause_id=clause.chunk_id,
-            clause_text=clause.text
-        )
+        # 🔹 Detect implicit legal incorporation
+        text_lower = clause.text.lower()
+        implicit_markers = [
+            "as per the act",
+            "as per rera",
+            "in accordance with the act",
+            "subject to the act",
+            "subject to rules",
+            "as prescribed under"
+        ]
+
+        if any(m in text_lower for m in implicit_markers):
+            compliance_mode = "IMPLICIT"
+        else:
+            compliance_mode = "UNKNOWN"
+
+        result.compliance_mode = compliance_mode
+        return result
 
         return result

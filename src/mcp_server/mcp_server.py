@@ -99,6 +99,77 @@ def analyze_contract_pdf(pdf_url: str, state: str = "uttar_pradesh") -> Dict:
 
 
 @mcp.tool()
+def analyze_contract_pdf_file(
+    pdf_path: str,
+    state: str = "uttar_pradesh",
+    base_dir: str = ""
+) -> Dict:
+    """
+    Analyze a contract PDF from a local file path and return explanation results.
+
+    Use this for PDFs on disk (e.g. under src/local_sources/ or any path).
+
+    Args:
+        pdf_path: Path to the PDF file. Can be absolute, or relative to project root
+                  or to base_dir if provided (e.g. "src/local_sources/contract.pdf").
+        state: Jurisdiction state (default: uttar_pradesh).
+        base_dir: Optional base directory for relative paths. If empty, relative
+                  paths are resolved from project root.
+
+    Returns:
+        Dict with state, count, and results (list of explanation payloads).
+
+    Example:
+        >>> analyze_contract_pdf_file("src/local_sources/F404_BBA_Shobhit Gupta.pdf")
+        >>> analyze_contract_pdf_file("/Users/me/contracts/bba.pdf")
+    """
+    logger.info(f"Analyzing local PDF file: {pdf_path}")
+
+    path = Path(pdf_path)
+    if not path.is_absolute():
+        root = Path(base_dir) if base_dir else PROJECT_ROOT
+        path = (root / pdf_path).resolve()
+
+    if not path.exists():
+        raise FileNotFoundError(f"PDF file not found: {path}")
+
+    if path.suffix.lower() != ".pdf":
+        raise ValueError("File is not a PDF")
+
+    system = _build_system(state)
+    extractor = UserContractPDFExtractor()
+    contract_text = extractor.extract_from_file(path)
+
+    if not contract_text or len(contract_text.strip()) < 500:
+        raise ValueError("Extracted contract text is empty or too short")
+
+    chunks = system["chunker"].chunker.chunk(contract_text)
+    results: List[ExplanationResult] = []
+
+    for chunk in chunks:
+        clause_result = system["clause_agent"].analyze(
+            clause=chunk,
+            state=state
+        )
+        evidence_pack = system["retrieval"].retrieve(
+            clause_result=clause_result,
+            state=state
+        )
+        explanation = system["explainer"].explain(
+            clause=chunk,
+            clause_result=clause_result,
+            evidence_pack=evidence_pack
+        )
+        results.append(explanation)
+
+    return {
+        "state": state,
+        "count": len(results),
+        "results": _to_payload(results)
+    }
+
+
+@mcp.tool()
 def analyze_contract_text(contract_text: str, state: str = "uttar_pradesh") -> Dict:
     """
     Analyze raw contract text and return explanation results.

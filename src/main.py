@@ -131,20 +131,30 @@ class ContractRiskAnalysisSystem:
 # CLI / Execution Entry
 # =========================================================
 
-def main(pdf_url: str) -> List[ExplanationResult]:
+def main(pdf_url_or_path: str) -> List[ExplanationResult]:
     """
-    CLI entry to run analysis from a PDF URL.
+    CLI entry to run analysis from a PDF URL or local file path.
 
     Example:
         >>> main("https://example.com/contract.pdf")
+        >>> main("src/local_sources/F404_BBA_Shobhit Gupta.pdf")
     """
-    logger.info(f"Received contract PDF URL: {pdf_url}")
+    logger.info(f"Received contract PDF: {pdf_url_or_path}")
 
     # -------------------------------------------------
     # 1️⃣ Extract contract text
     # -------------------------------------------------
     pdf_extractor = UserContractPDFExtractor()
-    contract_text = pdf_extractor.extract_from_url(pdf_url)
+    if pdf_url_or_path.startswith("http://") or pdf_url_or_path.startswith("https://"):
+        contract_text = pdf_extractor.extract_from_url(pdf_url_or_path)
+    else:
+        path = Path(pdf_url_or_path)
+        if not path.is_absolute():
+            base = Path(__file__).resolve().parent.parent
+            path = (base / pdf_url_or_path).resolve()
+        if not path.exists():
+            raise FileNotFoundError(f"PDF not found: {path}")
+        contract_text = pdf_extractor.extract_from_file(path)
 
     if not contract_text or len(contract_text.strip()) < 500:
         raise ValueError("Extracted contract text is empty or too short")
@@ -154,8 +164,9 @@ def main(pdf_url: str) -> List[ExplanationResult]:
     # -------------------------------------------------
     # 2️⃣ Load & validate vector indexes
     # -------------------------------------------------
+    BASE_DIR = Path(__file__).resolve().parent.parent
     index_registry = IndexRegistry(
-        base_dir=Path("data/vector_indexes"),
+        base_dir=BASE_DIR / "src" / "data" / "vector_indexes",
         embedding_dim=384
     )
     index_registry.validate_state("uttar_pradesh")
@@ -163,8 +174,6 @@ def main(pdf_url: str) -> List[ExplanationResult]:
     # -------------------------------------------------
     # 3️⃣ Load intent rules
     # -------------------------------------------------
-    BASE_DIR = Path(__file__).resolve().parent.parent
-
     intent_rules_path = BASE_DIR / "src" / "configs" / "real_state_intent_rules.yaml"
 
     # -------------------------------------------------
@@ -205,4 +214,10 @@ def main(pdf_url: str) -> List[ExplanationResult]:
 
 
 if __name__ == "__main__":
-    main('https://up-rera.in/ViewDocument?Param=PRJ33967944BBA.pdf&utm_source=chatgpt.com')
+    import sys
+    pdf_input = (
+        sys.argv[1]
+        if len(sys.argv) > 1
+        else "src/local_sources/F404_BBA_Shobhit Gupta.pdf"
+    )
+    main(pdf_input)

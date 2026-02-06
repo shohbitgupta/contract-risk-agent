@@ -8,12 +8,15 @@ class PDFTextExtractionError(Exception):
     """
 
 
+import logging
 import re
 import tempfile
 import requests
 from pathlib import Path
 from pdfminer.high_level import extract_text
 from pdfminer.pdfparser import PDFSyntaxError
+
+logger = logging.getLogger("pdf-extractor")
 
 
 class UserContractPDFExtractor:
@@ -42,9 +45,16 @@ class UserContractPDFExtractor:
         pdf_path = self._download_pdf(pdf_url)
         return self.extract_from_file(pdf_path)
 
-    def extract_from_file(self, pdf_path: Path) -> str:
+    def extract_from_file(
+        self,
+        pdf_path: Path,
+        use_ocr_if_scanned: bool = True,
+    ) -> str:
         """
         Extract text from a local PDF file.
+
+        Tries text extraction first; if the PDF appears scanned (insufficient
+        text), falls back to OCR when use_ocr_if_scanned is True.
 
         Raises:
             PDFTextExtractionError if extraction fails or text is too short.
@@ -62,13 +72,48 @@ class UserContractPDFExtractor:
                 f"Invalid or corrupted PDF structure: {e}"
             )
 
-        if not raw_text or len(raw_text.strip()) < self.MIN_TEXT_LENGTH:
-            raise PDFTextExtractionError(
-                "PDF appears to be scanned, image-based, or contains "
-                "insufficient extractable text. OCR required."
-            )
+        if raw_text and len(raw_text.strip()) >= self.MIN_TEXT_LENGTH:
+            return self._normalize(raw_text)
 
-        return self._normalize(raw_text)
+        if use_ocr_if_scanned:
+            logger.info(
+                "Text layer insufficient; attempting OCR (scanned/image PDF)."
+            )
+            raw_text = self._extract_via_ocr(pdf_path)
+            if raw_text:
+                logger.info("OCR extraction succeeded.")
+                return self._normalize(raw_text)
+            logger.warning("OCR unavailable or failed; install pdf2image, pytesseract, Tesseract, and Poppler to enable.")
+
+        raise PDFTextExtractionError(
+            "PDF appears to be scanned, image-based, or contains "
+            "insufficient extractable text. OCR required (install pdf2image, "
+            "pytesseract, Tesseract, and Poppler to enable automatic OCR)."
+        )
+
+    def _extract_via_ocr(self, pdf_path: Path) -> str:
+        """
+        Extract text using OCR when the PDF has no usable text layer.
+
+        Returns:
+            Extracted text, or empty string if OCR is unavailable or fails.
+        """
+        try:
+            from ingestion.contract_parser.pdf_ocr_extractor import (
+                PDFOCRExtractor,
+                is_ocr_available,
+            )
+        except ImportError:
+            return ""
+
+        if not is_ocr_available():
+            return ""
+
+        try:
+            ocr = PDFOCRExtractor()
+            return ocr.extract_from_file(pdf_path)
+        except Exception:
+            return ""
 
     # =========================================================
     # Internal helpers

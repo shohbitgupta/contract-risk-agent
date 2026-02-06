@@ -7,7 +7,286 @@
 # - What filters apply
 # =========================================================
 
+version: "1.0"
+
+meta:
+  domain: "indian_real_estate"
+  law_framework: "RERA"
+  description: >
+    Intent detection and retrieval rules for Indian real estate
+    Builder Buyer Agreements (BBAs), aligned with Central RERA Act,
+    State RERA Rules, and Model Agreements.
+
+# ============================================================
+# GLOBAL SETTINGS
+# ============================================================
+
+global:
+  implicit_compliance_markers:
+    - "as per the act"
+    - "as per rera"
+    - "in accordance with the act"
+    - "subject to the act"
+    - "subject to applicable rules"
+    - "as prescribed under the act"
+    - "as may be notified by the authority"
+    - "in terms of the rera act"
+
+  default_risk_if_uncertain: "medium"
+  conservative_bias: true
+
+# ============================================================
+# INTENT DEFINITIONS
+# ============================================================
+
 intents:
+
+  # ----------------------------------------------------------
+  # DELAY IN POSSESSION
+  # ----------------------------------------------------------
+  delay_in_possession:
+    intent_name: "delay_in_possession"
+    description: >
+      Clauses dealing with timelines for handing over possession,
+      delays, extensions, or consequences of delay.
+
+    keywords:
+      - "delay in possession"
+      - "handing over possession"
+      - "date of possession"
+      - "completion period"
+      - "possession shall be"
+      - "delivery of possession"
+
+    mandatory_rera_anchors:
+      - "RERA_ACT_SECTION_18"
+
+    expected_compliance_mode:
+      - "IMPLICIT"
+      - "EXPLICIT"
+
+    risk_rules:
+      high:
+        - "promoter shall not be liable"
+        - "no compensation shall be payable"
+        - "buyer waives right to refund"
+      medium:
+        - "subject to force majeure"
+      low:
+        - "as per the act"
+        - "in accordance with rera"
+
+    retrieval:
+      indexes:
+        - "model_bba"
+        - "rera_act"
+        - "rera_rules"
+      filters:
+        doc_type:
+          - "model_agreement"
+          - "rera_act"
+          - "state_rule"
+
+  # ----------------------------------------------------------
+  # FORCE MAJEURE
+  # ----------------------------------------------------------
+  force_majeure:
+    intent_name: "force_majeure"
+    description: >
+      Clauses allowing extension of timelines due to events
+      beyond the control of the promoter.
+
+    keywords:
+      - "force majeure"
+      - "act of god"
+      - "beyond the control"
+      - "natural calamity"
+      - "government orders"
+
+    mandatory_rera_anchors:
+      - "RERA_ACT_SECTION_6"
+
+    expected_compliance_mode:
+      - "IMPLICIT"
+      - "EXPLICIT"
+
+    risk_rules:
+      high:
+        - "any reason whatsoever"
+        - "including financial difficulty"
+      medium:
+        - "subject to approval"
+      low:
+        - "as defined under the act"
+
+    retrieval:
+      indexes:
+        - "model_bba"
+        - "rera_act"
+      filters:
+        doc_type:
+          - "model_agreement"
+          - "rera_act"
+
+  # ----------------------------------------------------------
+  # REFUND & WITHDRAWAL
+  # ----------------------------------------------------------
+  refund_and_withdrawal:
+    intent_name: "refund_and_withdrawal"
+    description: >
+      Clauses dealing with refund of amounts, interest,
+      or buyer’s right to withdraw.
+
+    keywords:
+      - "refund"
+      - "withdraw"
+      - "return of amount"
+      - "interest payable"
+      - "termination by allottee"
+
+    mandatory_rera_anchors:
+      - "RERA_ACT_SECTION_18"
+
+    expected_compliance_mode:
+      - "IMPLICIT"
+      - "EXPLICIT"
+
+    risk_rules:
+      high:
+        - "no refund shall be payable"
+        - "without any interest"
+      medium:
+        - "subject to deductions"
+      low:
+        - "as per the act"
+
+    retrieval:
+      indexes:
+        - "model_bba"
+        - "rera_act"
+        - "rera_rules"
+      filters:
+        doc_type:
+          - "model_agreement"
+          - "rera_act"
+          - "state_rule"
+
+  # ----------------------------------------------------------
+  # DEFECT LIABILITY
+  # ----------------------------------------------------------
+  defect_liability:
+    intent_name: "defect_liability"
+    description: >
+      Clauses dealing with rectification of structural or
+      workmanship defects after possession.
+
+    keywords:
+      - "defect liability"
+      - "structural defect"
+      - "rectification"
+      - "defect period"
+      - "five years"
+
+    mandatory_rera_anchors:
+      - "RERA_ACT_SECTION_14_3"
+
+    expected_compliance_mode:
+      - "IMPLICIT"
+      - "EXPLICIT"
+
+    risk_rules:
+      high:
+        - "no defect liability"
+        - "buyer waives defect claims"
+      low:
+        - "within five years"
+        - "as per the act"
+
+    retrieval:
+      indexes:
+        - "model_bba"
+        - "rera_act"
+      filters:
+        doc_type:
+          - "model_agreement"
+          - "rera_act"
+
+  # ----------------------------------------------------------
+  # INTEREST RATE
+  # ----------------------------------------------------------
+  rate_of_interest:
+    intent_name: "rate_of_interest"
+    description: >
+      Clauses defining interest payable by promoter or allottee
+      for defaults or delays.
+
+    keywords:
+      - "rate of interest"
+      - "interest payable"
+      - "mclr"
+      - "sbi lending rate"
+
+    mandatory_rera_anchors:
+      - "RERA_RULE_INTEREST_RATE"
+
+    expected_compliance_mode:
+      - "IMPLICIT"
+      - "EXPLICIT"
+
+    risk_rules:
+      high:
+        - "higher interest payable by allottee only"
+      low:
+        - "same rate applicable to both parties"
+
+    retrieval:
+      indexes:
+        - "rera_rules"
+      filters:
+        doc_type:
+          - "state_rule"
+
+  # ----------------------------------------------------------
+  # JURISDICTION & DISPUTE RESOLUTION
+  # ----------------------------------------------------------
+  jurisdiction:
+    intent_name: "jurisdiction"
+    description: >
+      Clauses specifying dispute resolution forums and
+      territorial jurisdiction.
+
+    keywords:
+      - "jurisdiction"
+      - "courts at"
+      - "dispute resolution"
+      - "adjudicating officer"
+      - "authority"
+
+    mandatory_rera_anchors:
+      - "RERA_ACT_SECTION_31"
+      - "RERA_ACT_SECTION_71"
+
+    expected_compliance_mode:
+      - "IMPLICIT"
+      - "EXPLICIT"
+
+    risk_rules:
+      high:
+        - "only civil courts"
+        - "excluding rera authority"
+      low:
+        - "subject to authority"
+        - "as per the act"
+
+    retrieval:
+      indexes:
+        - "model_bba"
+        - "rera_act"
+      filters:
+        doc_type:
+          - "model_agreement"
+          - "rera_act"
+
   # -------------------------------------------------
   # POSSESSION & DELAY
   # -------------------------------------------------

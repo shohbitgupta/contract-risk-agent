@@ -149,43 +149,136 @@ class LegalExplanationAgent:
     # Prompt construction
     # ------------------------------------------------------------------
 
-    def _build_evidance(
-        self,
-        clause: ContractChunk,
-        clause_result: ClauseUnderstandingResult,
-        evidence_pack: EvidencePack
-    ) -> str:
-        """
-        Construct the evidence prompt block sent to the LLM.
+    def _build_evidence(
+    self,
+    clause,
+    clause_result,
+    evidence_pack
+) -> str:
+    """
+    Build the evidence section for the explanation prompt.
 
-        Returns:
-            A single string containing clause text and evidence snippets.
-        """
+    Principles:
+    - Evidence-first grounding
+    - Explicit compliance handling
+    - No invention beyond retrieved material
+    """
 
-        evidence_block = ""
-        for i, ev in enumerate(evidence_pack.evidences, start=1):
-            evidence_block += (
-                f"[Evidence {i}]\n"
-                f"Source: {ev.source}\n"
-                f"Section: {ev.section_or_clause}\n"
-                f"Text: {ev.text}\n\n"
+    lines = []
+
+    # -------------------------------------------------
+    # 1. Clause context
+    # -------------------------------------------------
+    lines.append("CLAUSE UNDER REVIEW:")
+    lines.append(f"Clause ID: {clause.chunk_id}")
+    if clause.title:
+        lines.append(f"Title: {clause.title}")
+    lines.append("Text:")
+    lines.append(clause.text.strip())
+    lines.append("")
+
+    # -------------------------------------------------
+    # 2. Clause understanding summary
+    # -------------------------------------------------
+    lines.append("CLAUSE ANALYSIS:")
+    lines.append(f"- Detected Intent: {clause_result.intent}")
+    lines.append(f"- Risk Level: {clause_result.risk_level}")
+
+    compliance_mode = getattr(clause_result, "compliance_mode", "UNKNOWN")
+    lines.append(f"- Compliance Mode: {compliance_mode}")
+    lines.append("")
+
+    # -------------------------------------------------
+    # 3. Evidence section
+    # -------------------------------------------------
+    if not evidence_pack.evidences:
+        if compliance_mode == "IMPLICIT":
+            lines.append("LEGAL EVIDENCE:")
+            lines.append(
+                "The clause explicitly incorporates obligations by reference to "
+                "the Real Estate (Regulation and Development) Act, 2016 and/or "
+                "applicable State Rules."
+            )
+            lines.append(
+                "Such incorporation is standard in RERA-compliant Builder Buyer "
+                "Agreements and does not constitute absence of legal protection."
+            )
+        else:
+            lines.append("LEGAL EVIDENCE:")
+            lines.append(
+                "No directly relevant legal provisions were retrieved for this clause."
             )
 
-        return f"""
-USER CONTRACT CLAUSE:
-Clause ID: {clause.chunk_id}
-Text:
-{clause.text}
+        return "\n".join(lines)
 
-DETECTED INTENT:
-{clause_result.intent}
+    # -------------------------------------------------
+    # 4. Enumerate retrieved evidence
+    # -------------------------------------------------
+    lines.append("LEGAL EVIDENCE:")
 
-RISK LEVEL:
-{clause_result.risk_level}
+    for idx, ev in enumerate(evidence_pack.evidences, start=1):
+        source = ev.source or "Unknown Source"
+        section = ev.section_or_clause or "N/A"
 
-LEGAL EVIDENCE:
-{evidence_block}
-"""
+        lines.append(f"[{idx}] Source: {source}")
+        lines.append(f"    Section / Clause: {section}")
+        lines.append(f"    Text: {ev.text.strip()}")
+        lines.append("")
+
+    # -------------------------------------------------
+    # 5. Guardrail instruction to LLM
+    # -------------------------------------------------
+    lines.append("INSTRUCTIONS:")
+    lines.append(
+        "- Base the explanation strictly on the clause text and the legal evidence above."
+    )
+    lines.append(
+        "- If the clause incorporates the law by reference, treat it as compliant "
+        "unless a contradiction is explicitly shown."
+    )
+    lines.append(
+        "- Do NOT introduce legal obligations or rights not present in the evidence."
+    )
+
+    return "\n".join(lines)
+
+#     def _build_evidance(
+#         self,
+#         clause: ContractChunk,
+#         clause_result: ClauseUnderstandingResult,
+#         evidence_pack: EvidencePack
+#     ) -> str:
+#         """
+#         Construct the evidence prompt block sent to the LLM.
+
+#         Returns:
+#             A single string containing clause text and evidence snippets.
+#         """
+
+#         evidence_block = ""
+#         for i, ev in enumerate(evidence_pack.evidences, start=1):
+#             evidence_block += (
+#                 f"[Evidence {i}]\n"
+#                 f"Source: {ev.source}\n"
+#                 f"Section: {ev.section_or_clause}\n"
+#                 f"Text: {ev.text}\n\n"
+#             )
+
+#         return f"""
+# USER CONTRACT CLAUSE:
+# Clause ID: {clause.chunk_id}
+# Text:
+# {clause.text}
+
+# DETECTED INTENT:
+# {clause_result.intent}
+
+# RISK LEVEL:
+# {clause_result.risk_level}
+
+# LEGAL EVIDENCE:
+# {evidence_block}
+# """
 
     # ------------------------------------------------------------------
     # Guardrails & Validation
@@ -293,7 +386,10 @@ LEGAL EVIDENCE:
         Compute a coarse alignment label when evidence exists.
         """
         if not evidence_pack.evidences:
-            return "insufficient_evidence"
+        return "insufficient_evidence"
+
+        if clause_result.compliance_mode == "IMPLICIT":
+            return "aligned"
 
         if clause_result.risk_level == "high":
             return "conflicting"

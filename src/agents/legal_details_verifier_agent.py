@@ -133,7 +133,7 @@ DRAFT EXPLANATION (TO REFINE):
         raw = response.stdout.strip()
         try:
             return self._extract_json(raw)
-        except ValueError:
+        except (ValueError, json.JSONDecodeError):
             # One retry with a stricter JSON-only prompt
             retry_prompt = f"""
 Return ONLY valid JSON for the following output. Do not add any text.
@@ -148,10 +148,11 @@ OUTPUT TO FIX:
                 capture_output=True
             )
             if retry.returncode != 0:
-                raise RuntimeError(
-                    f"Ollama refiner retry error: {retry.stderr}"
-                )
-            return self._extract_json(retry.stdout.strip())
+                return self._fallback_json()
+            try:
+                return self._extract_json(retry.stdout.strip())
+            except (ValueError, json.JSONDecodeError):
+                return self._fallback_json()
 
     def _extract_json(self, text: str) -> str:
         """
@@ -174,10 +175,33 @@ OUTPUT TO FIX:
             candidate = match.group(0)
             sanitized = candidate.replace("\t", " ")
             sanitized = re.sub(r",\s*([}\]])", r"\1", sanitized)
-            parsed = json.loads(sanitized)
-            return self._normalize_output(parsed)
+            try:
+                parsed = json.loads(sanitized)
+                return self._normalize_output(parsed)
+            except json.JSONDecodeError:
+                pass
 
         raise ValueError("Refiner did not return valid JSON")
+
+    def _fallback_json(self) -> str:
+        """
+        Return valid minimal JSON when refiner output cannot be parsed.
+        Keeps the pipeline running instead of crashing.
+        """
+        data = {
+            "alignment": "insufficient_evidence",
+            "key_findings": [
+                "The refiner output could not be parsed as valid JSON. "
+                "Explanation is based on available evidence only."
+            ],
+            "explanation": (
+                "The system could not structure the refiner's response. "
+                "Please treat this as informational only and consult a legal professional "
+                "for advice on this clause."
+            ),
+            "evidence_mapping": []
+        }
+        return json.dumps(data, ensure_ascii=False)
 
     def _normalize_output(self, parsed: dict) -> str:
         """
