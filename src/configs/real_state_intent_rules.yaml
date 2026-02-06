@@ -7,15 +7,15 @@
 # - What filters apply
 # =========================================================
 
-version: "1.0"
+version: "1.1"
 
 meta:
   domain: "indian_real_estate"
-  law_framework: "RERA"
+  framework: "RERA"
   description: >
-    Intent detection and retrieval rules for Indian real estate
+    Intent detection and legal retrieval rules for Indian real estate
     Builder Buyer Agreements (BBAs), aligned with Central RERA Act,
-    State RERA Rules, and Model Agreements.
+    State RERA Rules, and State Model Agreements.
 
 # ============================================================
 # GLOBAL SETTINGS
@@ -36,27 +36,22 @@ global:
   conservative_bias: true
 
 # ============================================================
-# INTENT DEFINITIONS
+# BASE INTENTS (COMMON ACROSS STATES)
 # ============================================================
 
 intents:
-
-  # ----------------------------------------------------------
-  # DELAY IN POSSESSION
-  # ----------------------------------------------------------
   delay_in_possession:
     intent_name: "delay_in_possession"
     description: >
-      Clauses dealing with timelines for handing over possession,
-      delays, extensions, or consequences of delay.
+      Clauses dealing with timelines for handing over possession
+      and consequences of delay.
 
     keywords:
       - "delay in possession"
       - "handing over possession"
       - "date of possession"
       - "completion period"
-      - "possession shall be"
-      - "delivery of possession"
+      - "offer of possession"
 
     mandatory_rera_anchors:
       - "RERA_ACT_SECTION_18"
@@ -87,21 +82,17 @@ intents:
           - "rera_act"
           - "state_rule"
 
-  # ----------------------------------------------------------
-  # FORCE MAJEURE
-  # ----------------------------------------------------------
   force_majeure:
     intent_name: "force_majeure"
     description: >
-      Clauses allowing extension of timelines due to events
-      beyond the control of the promoter.
+      Clauses extending timelines due to uncontrollable events.
 
     keywords:
       - "force majeure"
       - "act of god"
       - "beyond the control"
       - "natural calamity"
-      - "government orders"
+      - "government order"
 
     mandatory_rera_anchors:
       - "RERA_ACT_SECTION_6"
@@ -113,9 +104,7 @@ intents:
     risk_rules:
       high:
         - "any reason whatsoever"
-        - "including financial difficulty"
-      medium:
-        - "subject to approval"
+        - "financial difficulty"
       low:
         - "as defined under the act"
 
@@ -128,21 +117,16 @@ intents:
           - "model_agreement"
           - "rera_act"
 
-  # ----------------------------------------------------------
-  # REFUND & WITHDRAWAL
-  # ----------------------------------------------------------
   refund_and_withdrawal:
     intent_name: "refund_and_withdrawal"
     description: >
-      Clauses dealing with refund of amounts, interest,
-      or buyer’s right to withdraw.
+      Clauses related to refund, withdrawal, and interest.
 
     keywords:
       - "refund"
       - "withdraw"
-      - "return of amount"
-      - "interest payable"
       - "termination by allottee"
+      - "interest payable"
 
     mandatory_rera_anchors:
       - "RERA_ACT_SECTION_18"
@@ -154,7 +138,7 @@ intents:
     risk_rules:
       high:
         - "no refund shall be payable"
-        - "without any interest"
+        - "without interest"
       medium:
         - "subject to deductions"
       low:
@@ -171,20 +155,15 @@ intents:
           - "rera_act"
           - "state_rule"
 
-  # ----------------------------------------------------------
-  # DEFECT LIABILITY
-  # ----------------------------------------------------------
   defect_liability:
     intent_name: "defect_liability"
     description: >
-      Clauses dealing with rectification of structural or
-      workmanship defects after possession.
+      Clauses dealing with structural or workmanship defects.
 
     keywords:
       - "defect liability"
       - "structural defect"
       - "rectification"
-      - "defect period"
       - "five years"
 
     mandatory_rera_anchors:
@@ -197,7 +176,7 @@ intents:
     risk_rules:
       high:
         - "no defect liability"
-        - "buyer waives defect claims"
+        - "buyer waives defect claim"
       low:
         - "within five years"
         - "as per the act"
@@ -211,14 +190,10 @@ intents:
           - "model_agreement"
           - "rera_act"
 
-  # ----------------------------------------------------------
-  # INTEREST RATE
-  # ----------------------------------------------------------
   rate_of_interest:
     intent_name: "rate_of_interest"
     description: >
-      Clauses defining interest payable by promoter or allottee
-      for defaults or delays.
+      Clauses defining interest payable for defaults.
 
     keywords:
       - "rate of interest"
@@ -226,18 +201,9 @@ intents:
       - "mclr"
       - "sbi lending rate"
 
-    mandatory_rera_anchors:
-      - "RERA_RULE_INTEREST_RATE"
-
     expected_compliance_mode:
       - "IMPLICIT"
       - "EXPLICIT"
-
-    risk_rules:
-      high:
-        - "higher interest payable by allottee only"
-      low:
-        - "same rate applicable to both parties"
 
     retrieval:
       indexes:
@@ -246,20 +212,15 @@ intents:
         doc_type:
           - "state_rule"
 
-  # ----------------------------------------------------------
-  # JURISDICTION & DISPUTE RESOLUTION
-  # ----------------------------------------------------------
   jurisdiction:
     intent_name: "jurisdiction"
     description: >
-      Clauses specifying dispute resolution forums and
-      territorial jurisdiction.
+      Clauses defining dispute resolution and jurisdiction.
 
     keywords:
       - "jurisdiction"
       - "courts at"
       - "dispute resolution"
-      - "adjudicating officer"
       - "authority"
 
     mandatory_rera_anchors:
@@ -275,7 +236,6 @@ intents:
         - "only civil courts"
         - "excluding rera authority"
       low:
-        - "subject to authority"
         - "as per the act"
 
     retrieval:
@@ -287,188 +247,114 @@ intents:
           - "model_agreement"
           - "rera_act"
 
-  # -------------------------------------------------
-  # POSSESSION & DELAY
-  # -------------------------------------------------
-  possession_delay:
-    description: >
-      Delay or failure in handing over possession of the apartment
-      within the committed timeline.
-    keywords:
-      - possession
-      - delay
-      - handover
-      - delivery
-      - completion
-      - offer of possession
-    retrieval:
-      index: rera_act
-      filters:
-        doc_type:
-          - rera_act
-    legal_sections:
-      - "Section 18"
+# ============================================================
+# STATE-SPECIFIC OVERRIDES
+# ============================================================
 
-  # -------------------------------------------------
-  # REFUND / WITHDRAWAL / CANCELLATION
-  # -------------------------------------------------
-  refund_and_withdrawal:
-    description: >
-      Rights of the allottee to withdraw from the project
-      and seek refund with interest.
-    keywords:
-      - refund
-      - withdraw
-      - cancellation
-      - cancel
-      - termination
-      - forfeit
-    retrieval:
-      index: rera_act
-      filters:
-        doc_type:
-          - rera_act
-    legal_sections:
-      - "Section 18"
+state_overrides:
+  uttar_pradesh:
+    rate_of_interest:
+      mandatory_rera_anchors:
+        - "UP_RERA_RULE_15"
+    delay_in_possession:
+      mandatory_rera_anchors:
+        - "UP_RERA_RULE_16"
+        - "RERA_ACT_SECTION_18"
 
-  # -------------------------------------------------
-  # INTEREST / COMPENSATION / PENALTY
-  # -------------------------------------------------
-  interest_and_compensation:
-    description: >
-      Interest or compensation payable by promoter or allottee
-      in case of default, delay, or breach.
-    keywords:
-      - interest
-      - compensation
-      - penalty
-      - default
-      - rate of interest
-      - delay charges
-    retrieval:
-      index: rera_rules
-      filters:
-        doc_type:
-          - state_rule
+  maharashtra:
+    rate_of_interest:
+      mandatory_rera_anchors:
+        - "MAHA_RERA_RULE_18"
+    delay_in_possession:
+      mandatory_rera_anchors:
+        - "MAHA_RERA_RULE_18"
+        - "RERA_ACT_SECTION_18"
 
-  # -------------------------------------------------
-  # FORCE MAJEURE
-  # -------------------------------------------------
-  force_majeure:
-    description: >
-      Events beyond control of promoter such as natural calamities
-      that affect construction or possession.
-    keywords:
-      - force majeure
-      - act of god
-      - natural calamity
-      - earthquake
-      - flood
-      - war
-    retrieval:
-      index: rera_act
-      filters:
-        doc_type:
-          - rera_act
+  karnataka:
+    rate_of_interest:
+      mandatory_rera_anchors:
+        - "KARNATAKA_RERA_RULE_18"
+    delay_in_possession:
+      mandatory_rera_anchors:
+        - "KARNATAKA_RERA_RULE_18"
+        - "RERA_ACT_SECTION_18"
 
-  # -------------------------------------------------
-  # DEFECT LIABILITY
-  # -------------------------------------------------
-  defect_liability:
-    description: >
-      Structural or workmanship defects after possession
-      and promoter's obligation to rectify them.
-    keywords:
-      - defect
-      - defect liability
-      - structural defect
-      - workmanship
-      - rectification
-    retrieval:
-      index: rera_act
-      filters:
-        doc_type:
-          - rera_act
-    legal_sections:
-      - "Section 14"
+# ============================================================
+# VIOLATION-ONLY INTENTS (ILLEGAL BY DESIGN)
+# ============================================================
 
-  # -------------------------------------------------
-  # ALTERATION / ADDITION / CHANGE IN PLAN
-  # -------------------------------------------------
-  alteration_and_change:
+violation_only_intents:
+  waiver_of_rera_rights:
+    intent_name: "waiver_of_rera_rights"
     description: >
-      Changes or alterations to sanctioned plans, layout,
-      or specifications after allotment.
-    keywords:
-      - alteration
-      - change
-      - modification
-      - layout
-      - sanctioned plan
-      - specification
-    retrieval:
-      index: rera_act
-      filters:
-        doc_type:
-          - rera_act
-    legal_sections:
-      - "Section 14"
+      Clauses where allottee waives statutory RERA rights.
 
-  # -------------------------------------------------
-  # AGREEMENT / CONTRACTUAL TERMS (MODEL BBA)
-  # -------------------------------------------------
-  agreement_terms:
-    description: >
-      Contractual obligations, rights, and duties defined
-      in the Agreement for Sale / Builder Buyer Agreement.
     keywords:
-      - agreement
-      - allottee
-      - promoter
-      - obligation
-      - covenant
-      - clause
-      - schedule
-    retrieval:
-      index: model_bba
-      filters:
-        doc_type:
-          - model_agreement
+      - "waives all rights"
+      - "no claim shall lie"
+      - "irrevocably waives"
+      - "no remedy shall be available"
 
-  # -------------------------------------------------
-  # MAINTENANCE & COMMON AREAS
-  # -------------------------------------------------
-  maintenance_and_common_areas:
-    description: >
-      Maintenance charges, common areas, and handover
-      to association of allottees.
-    keywords:
-      - maintenance
-      - common areas
-      - association of allottees
-      - facilities
-      - services
-    retrieval:
-      index: model_bba
-      filters:
-        doc_type:
-          - model_agreement
+    violated_laws:
+      - "RERA_ACT_SECTION_18"
+      - "RERA_ACT_SECTION_79"
+      - "RERA_ACT_SECTION_88"
 
-  # -------------------------------------------------
-  # GOVERNING LAW / JURISDICTION
-  # -------------------------------------------------
-  governing_law:
-    description: >
-      Clauses specifying governing law, jurisdiction,
-      and dispute resolution forum.
-    keywords:
-      - governing law
-      - jurisdiction
-      - court
-      - authority
-      - adjudicating officer
+    risk_level: "high"
+    resolution: "CONTRADICTION"
+
     retrieval:
-      index: rera_act
+      indexes:
+        - "rera_act"
       filters:
         doc_type:
-          - rera_act
+          - "rera_act"
+
+  exclusion_of_rera_jurisdiction:
+    intent_name: "exclusion_of_rera_jurisdiction"
+    description: >
+      Clauses attempting to exclude RERA authority jurisdiction.
+
+    keywords:
+      - "only civil courts shall have jurisdiction"
+      - "excluding rera authority"
+      - "no complaint shall lie before authority"
+
+    violated_laws:
+      - "RERA_ACT_SECTION_31"
+      - "RERA_ACT_SECTION_71"
+      - "RERA_ACT_SECTION_79"
+
+    risk_level: "high"
+    resolution: "CONTRADICTION"
+
+    retrieval:
+      indexes:
+        - "rera_act"
+      filters:
+        doc_type:
+          - "rera_act"
+
+  unilateral_modification:
+    intent_name: "unilateral_modification"
+    description: >
+      Clauses allowing promoter unilateral changes without consent.
+
+    keywords:
+      - "sole discretion of the promoter"
+      - "absolute right to alter"
+      - "without consent of allottee"
+
+    violated_laws:
+      - "RERA_ACT_SECTION_14"
+      - "RERA_ACT_SECTION_12"
+
+    risk_level: "high"
+    resolution: "CONTRADICTION"
+
+    retrieval:
+      indexes:
+        - "rera_act"
+      filters:
+        doc_type:
+          - "rera_act"

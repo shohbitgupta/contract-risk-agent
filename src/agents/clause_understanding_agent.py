@@ -13,9 +13,9 @@ class ClauseUnderstandingAgent:
     Clause understanding layer that maps a clause to a legal intent.
 
     Responsibilities:
-    - Accept a parsed contract chunk
-    - Determine the legal intent using IntentRuleEngine
-    - Emit retrieval instructions for downstream retrieval
+    - RERA-aware intent detection
+    - IMPLICIT / EXPLICIT / CONTRADICTION compliance handling
+    - Deterministic compliance confidence scoring
 
     This agent:
     - DOES NOT select indexes
@@ -36,33 +36,66 @@ class ClauseUnderstandingAgent:
         state: str
     ) -> ClauseUnderstandingResult:
         """
-        Analyze a single contract clause and return structured intent output.
-
-        Parameters:
-        - clause: ContractChunk (id + text)
-        - state: Jurisdiction (currently unused here, passed downstream)
-
-        Returns:
-        - ClauseUnderstandingResult
+        Analyze a contract clause and enrich it with
+        legal intent, risk, compliance mode, and confidence.
         """
 
-        # 🔹 Detect implicit legal incorporation
-        text_lower = clause.text.lower()
-        implicit_markers = [
-            "as per the act",
-            "as per rera",
-            "in accordance with the act",
-            "subject to the act",
-            "subject to rules",
-            "as prescribed under"
-        ]
+        # 1️⃣ Run intent rules engine
+        result = self.intent_engine.analyze(
+            clause_id=clause.chunk_id,
+            clause_text=clause.text,
+            state=state
+        )
 
-        if any(m in text_lower for m in implicit_markers):
-            compliance_mode = "IMPLICIT"
+        # 2️⃣ Compute compliance confidence
+        confidence = self._compute_compliance_confidence(
+            clause=clause,
+            result=result
+        )
+
+        # 3️⃣ Attach confidence
+        result.compliance_confidence = confidence
+
+        return result
+
+    # -----------------------------------------------------
+    # Confidence Scoring Logic
+    # -----------------------------------------------------
+
+    def _compute_compliance_confidence(
+        self,
+        clause: ContractChunk,
+        result: ClauseUnderstandingResult
+    ) -> float:
+        """
+        Deterministic confidence scoring for legal interpretation.
+
+        Output range: 0.0 – 1.0
+        """
+
+        score = 0.5  # neutral baseline
+
+        # Intent clarity
+        if result.intent and result.intent != "unknown":
+            score += 0.2
         else:
-            compliance_mode = "UNKNOWN"
+            score -= 0.2
 
-        result.compliance_mode = compliance_mode
-        return result
+        # Compliance mode
+        if result.compliance_mode in ("IMPLICIT", "EXPLICIT"):
+            score += 0.2
+        elif result.compliance_mode == "CONTRADICTION":
+            score -= 0.3
 
-        return result
+        # Risk signal clarity
+        if result.risk_level in ("high", "medium", "low"):
+            score += 0.1
+
+        # Structural confidence from chunker
+        if getattr(clause, "confidence", 0) >= 0.8:
+            score += 0.1
+
+        # Clamp score to [0.0, 1.0]
+        score = max(0.0, min(1.0, score))
+
+        return round(score, 2)

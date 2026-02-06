@@ -37,6 +37,9 @@ components of the AI contract risk analyzer.
 ### Ingestion
 - `ingestion/contract_parser/pdf_text_extractor.py`
   - PDF download + text extraction with validation.
+  - If the PDF has insufficient text (scanned/image), falls back to OCR automatically.
+- `ingestion/contract_parser/pdf_ocr_extractor.py`
+  - OCR extraction for scanned PDFs (Tesseract + pdf2image). Optional; requires system deps: Tesseract, Poppler.
 - `ingestion/contract_parser/contract_ingestion.py`
   - Wires PDF → normalized text → clause chunking.
 

@@ -186,12 +186,18 @@ import numpy as np
 from RAG.models import (
     ClauseUnderstandingResult,
     Evidence,
-    EvidencePack
+    EvidencePack,
+    ChunkMetadata
 )
+
+from utils.schema_factory import build_model
+from utils.schema_drift import log_schema_drift
+from configs.schema_config import STRICT_SCHEMA
 
 from vector_index.embedding import EmbeddingGenerator
 from vector_index.index_registry import IndexRegistry
 from vector_index.index_base import IndexDocument
+from retrieval.metadata_normalizer import normalize_chunk_metadata
 
 
 class RetrievalOrchestrator:
@@ -248,17 +254,40 @@ class RetrievalOrchestrator:
                     ):
                         continue
 
+                    # -----------------------------
+                    # Metadata (STRICT)
+                    # -----------------------------
+                    normalized = normalize_chunk_metadata(
+                        raw=doc.metadata,
+                        index_name=index_name,
+                        state=state
+                    )
+
+                    metadata = build_model(
+                        ChunkMetadata,
+                        normalized,
+                        strict=STRICT_SCHEMA,
+                        log_fn=log_schema_drift
+                    )
+
+                    evidence_data = {
+                        "source": metadata.source,
+                        "section_or_clause": (
+                            doc.metadata.get("section")
+                            or doc.metadata.get("rule")
+                            or doc.metadata.get("clause")
+                            or doc.metadata.get("chunk_id")
+                        ),
+                        "text": doc.content,
+                        "metadata": metadata,
+                    }
+
                     evidences.append(
-                        Evidence(
-                            source=doc.metadata.get("source"),
-                            section_or_clause=(
-                                doc.metadata.get("section")
-                                or doc.metadata.get("rule")
-                                or doc.metadata.get("clause")
-                                or doc.metadata.get("chunk_id")
-                            ),
-                            text=doc.content,
-                            metadata=doc.metadata
+                        build_model(
+                            Evidence,
+                            evidence_data,
+                            strict=STRICT_SCHEMA,
+                            log_fn=log_schema_drift
                         )
                     )
 
@@ -270,15 +299,23 @@ class RetrievalOrchestrator:
             evidences=evidences
         )
 
-        return EvidencePack(
-            clause_id=clause_result.clause_id,
-            intent=clause_result.intent,
-            evidences=evidences,
-            resolution=resolution
+        pack_data = {
+            "clause_id": clause_result.clause_id,
+            "clause_text": getattr(clause_result, "clause_text", ""),
+            "risk_level": clause_result.risk_level,
+            "evidences": evidences,
+            "resolution": resolution,
+        }
+
+        return build_model(
+            EvidencePack,
+            pack_data,
+            strict=STRICT_SCHEMA,
+            log_fn=log_schema_drift
         )
 
     # -------------------------------------------------
-    # Evidence resolution logic (NEW)
+    # Evidence resolution logic
     # -------------------------------------------------
 
     def _resolve_evidence(
@@ -296,7 +333,7 @@ class RetrievalOrchestrator:
             return "INSUFFICIENT"
 
         for ev in evidences:
-            doc_type = ev.metadata.get("doc_type")
+            doc_type = ev.metadata.doc_type
             if doc_type in {"model_agreement", "rera_act", "state_rule"}:
                 if getattr(clause_result, "compliance_mode", None) == "IMPLICIT":
                     return "IMPLIED_ALIGNMENT"
@@ -313,9 +350,6 @@ class RetrievalOrchestrator:
         query: Dict,
         indexes: Dict[str, object]
     ) -> List[str]:
-        """
-        Prioritize indexes for compliant BBAs.
-        """
         requested = query.get("index")
         if requested:
             if requested not in indexes:

@@ -1,397 +1,200 @@
-import json
-import os
-from pathlib import Path
-from typing import Dict, List
-
-from openai import OpenAI
-
-from agents.llm_analyzer_facade import LegalLLMFacade
-from tools.llm_response_cache import LLMResponseCache
-
-from RAG.models import (
-    ClauseUnderstandingResult,
-    EvidencePack,
-    ExplanationResult
-)
-from RAG.user_contract_chunker import ContractChunk
+from RAG.models import ExplanationResult
 from tools.logger import setup_logger
+
+from utils.schema_factory import build_model
+from utils.schema_drift import log_schema_drift
+from configs.schema_config import STRICT_SCHEMA
 
 logger = setup_logger("legal-explanation-agent")
 
 
 class LegalExplanationAgent:
     """
-    Evidence-bound, guardrailed legal explanation agent.
-
-    Example:
-        >>> agent = LegalExplanationAgent()
-        >>> agent.explain(clause, clause_result, evidence_pack)
-        ExplanationResult(...)
+    Generates legally grounded explanations using:
+    - Retrieved evidence
+    - Compliance mode
+    - Compliance confidence
     """
 
-    MODEL = "gpt-4o-mini"
-    TEMPERATURE = 0.0
-
-    SYSTEM_PROMPT = """
-    You are a legal explanation engine.
-
-    HARD CONSTRAINTS:
-    - Use ONLY the evidence provided.
-    - Do NOT invent laws, rules, or interpretations.
-    - Do NOT give legal advice.
-    - If evidence is insufficient, explicitly say so.
-    - Every claim MUST reference an evidence_id.
-    - Output MUST be valid JSON matching the schema.
-    
-
-    ALLOWED ALIGNMENT VALUES:
-    - aligned
-    - partially_aligned
-    - conflicting
-    - insufficient_evidence
-    """
-
-    OUTPUT_SCHEMA = {
-        "alignment": "string",
-        "key_findings": "array",
-        "explanation": "string",
-        "evidence_mapping": "array"
-    }
-
-    def __init__(self):
-        """
-        Initialize the agent, cache, and LLM facade.
-
-        Raises:
-            RuntimeError if OPENAI_API_KEY is missing.
-        """
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise RuntimeError(
-                "OPENAI_API_KEY not found. "
-                "Set it in .env or environment variables."
-            )
-
-        # OpenAI client (used by refiner inside facade)
-        self.client = OpenAI(api_key=api_key)
-
-        # LLM facade (Local → OpenAI refine)
-        self.llm_facade = LegalLLMFacade()
-
-        # Deterministic cache for final explanations
-        self.cache = LLMResponseCache(
-            cache_dir=Path("data/llm_cache")
-        )
+    # -------------------------------------------------
+    # Public API
+    # -------------------------------------------------
 
     def explain(
         self,
-        clause: ContractChunk,
-        clause_result: ClauseUnderstandingResult,
-        evidence_pack: EvidencePack
+        clause,
+        clause_result,
+        evidence_pack
     ) -> ExplanationResult:
-        """
-        Produce a structured explanation for a single clause.
 
-        Uses cache when possible, otherwise calls the LLM facade and validates
-        the output against strict schema constraints.
+        # 1️⃣ Determine explanation stance
+        stance = self._determine_stance(
+            compliance_confidence=clause_result.compliance_confidence,
+            compliance_mode=clause_result.compliance_mode
+        )
 
-        Example:
-            >>> agent.explain(clause, clause_result, evidence_pack).alignment
-            'partially_aligned'
-        """
-
-        cache_key = self.cache.build_cache_key(
-            clause_text=clause.text,
-            intent=clause_result.intent,
-            obligation_type=clause_result.obligation_type,
+        # 2️⃣ Determine alignment label
+        alignment = self._determine_alignment(
+            clause_result=clause_result,
             evidence_pack=evidence_pack
         )
 
-        cached = self.cache.get(cache_key)
-
-        if cached:
-            logger.info("LLM cache hit")
-        else:
-            logger.info("LLM cache miss")
-
-        if cached:
-            return ExplanationResult(**cached)
-
-        # Build evidence text for facade
-        evidence_text = self._build_evidance(clause, clause_result, evidence_pack)
-
-        logger.info(f"LLM evidence text: {evidence_text}")
-
-        # Delegate execution to LLM facade (local → OpenAI)
-        raw_output = self.llm_facade.explain(
-            clause_text=clause.text,
-            evidence_text=evidence_text
+        # 3️⃣ Build explanation text
+        summary, detailed = self._build_explanation(
+            clause=clause,
+            clause_result=clause_result,
+            evidence_pack=evidence_pack,
+            stance=stance
         )
 
-        logger.info(f"Raw output: {raw_output}")
+        # -------------------------------------------------
+        # Build schema-safe payload
+        # -------------------------------------------------
 
-        parsed = self._parse_and_validate_output(raw_output, evidence_pack)
-
-        quality_score = self._score_explanation(parsed, evidence_pack)
-
-        return ExplanationResult(
-            clause_id=clause.chunk_id,
-            alignment=self._determine_alignment(clause_result, evidence_pack),
-            risk_level=clause_result.risk_level,
-            summary=parsed["key_findings"][0],
-            detailed_explanation=parsed["explanation"],
-            citations=self._build_citations(evidence_pack),
-            quality_score=quality_score,
-            disclaimer=self._disclaimer()
-        )
-
-    # ------------------------------------------------------------------
-    # Prompt construction
-    # ------------------------------------------------------------------
-
-    def _build_evidence(
-    self,
-    clause,
-    clause_result,
-    evidence_pack
-) -> str:
-    """
-    Build the evidence section for the explanation prompt.
-
-    Principles:
-    - Evidence-first grounding
-    - Explicit compliance handling
-    - No invention beyond retrieved material
-    """
-
-    lines = []
-
-    # -------------------------------------------------
-    # 1. Clause context
-    # -------------------------------------------------
-    lines.append("CLAUSE UNDER REVIEW:")
-    lines.append(f"Clause ID: {clause.chunk_id}")
-    if clause.title:
-        lines.append(f"Title: {clause.title}")
-    lines.append("Text:")
-    lines.append(clause.text.strip())
-    lines.append("")
-
-    # -------------------------------------------------
-    # 2. Clause understanding summary
-    # -------------------------------------------------
-    lines.append("CLAUSE ANALYSIS:")
-    lines.append(f"- Detected Intent: {clause_result.intent}")
-    lines.append(f"- Risk Level: {clause_result.risk_level}")
-
-    compliance_mode = getattr(clause_result, "compliance_mode", "UNKNOWN")
-    lines.append(f"- Compliance Mode: {compliance_mode}")
-    lines.append("")
-
-    # -------------------------------------------------
-    # 3. Evidence section
-    # -------------------------------------------------
-    if not evidence_pack.evidences:
-        if compliance_mode == "IMPLICIT":
-            lines.append("LEGAL EVIDENCE:")
-            lines.append(
-                "The clause explicitly incorporates obligations by reference to "
-                "the Real Estate (Regulation and Development) Act, 2016 and/or "
-                "applicable State Rules."
-            )
-            lines.append(
-                "Such incorporation is standard in RERA-compliant Builder Buyer "
-                "Agreements and does not constitute absence of legal protection."
-            )
-        else:
-            lines.append("LEGAL EVIDENCE:")
-            lines.append(
-                "No directly relevant legal provisions were retrieved for this clause."
-            )
-
-        return "\n".join(lines)
-
-    # -------------------------------------------------
-    # 4. Enumerate retrieved evidence
-    # -------------------------------------------------
-    lines.append("LEGAL EVIDENCE:")
-
-    for idx, ev in enumerate(evidence_pack.evidences, start=1):
-        source = ev.source or "Unknown Source"
-        section = ev.section_or_clause or "N/A"
-
-        lines.append(f"[{idx}] Source: {source}")
-        lines.append(f"    Section / Clause: {section}")
-        lines.append(f"    Text: {ev.text.strip()}")
-        lines.append("")
-
-    # -------------------------------------------------
-    # 5. Guardrail instruction to LLM
-    # -------------------------------------------------
-    lines.append("INSTRUCTIONS:")
-    lines.append(
-        "- Base the explanation strictly on the clause text and the legal evidence above."
-    )
-    lines.append(
-        "- If the clause incorporates the law by reference, treat it as compliant "
-        "unless a contradiction is explicitly shown."
-    )
-    lines.append(
-        "- Do NOT introduce legal obligations or rights not present in the evidence."
-    )
-
-    return "\n".join(lines)
-
-#     def _build_evidance(
-#         self,
-#         clause: ContractChunk,
-#         clause_result: ClauseUnderstandingResult,
-#         evidence_pack: EvidencePack
-#     ) -> str:
-#         """
-#         Construct the evidence prompt block sent to the LLM.
-
-#         Returns:
-#             A single string containing clause text and evidence snippets.
-#         """
-
-#         evidence_block = ""
-#         for i, ev in enumerate(evidence_pack.evidences, start=1):
-#             evidence_block += (
-#                 f"[Evidence {i}]\n"
-#                 f"Source: {ev.source}\n"
-#                 f"Section: {ev.section_or_clause}\n"
-#                 f"Text: {ev.text}\n\n"
-#             )
-
-#         return f"""
-# USER CONTRACT CLAUSE:
-# Clause ID: {clause.chunk_id}
-# Text:
-# {clause.text}
-
-# DETECTED INTENT:
-# {clause_result.intent}
-
-# RISK LEVEL:
-# {clause_result.risk_level}
-
-# LEGAL EVIDENCE:
-# {evidence_block}
-# """
-
-    # ------------------------------------------------------------------
-    # Guardrails & Validation
-    # ------------------------------------------------------------------
-
-    def _parse_and_validate_output(
-        self,
-        output: str,
-        evidence_pack: EvidencePack
-    ) -> Dict:
-        """
-        Parse JSON output and enforce alignment and evidence references.
-
-        Raises:
-            ValueError if JSON is invalid or evidence IDs are hallucinated.
-        """
-
-        try:
-            parsed = json.loads(output)
-        except json.JSONDecodeError:
-            raise ValueError("LLM output is not valid JSON")
-
-        if parsed.get("alignment") not in {
-            "aligned", "partially_aligned", "conflicting", "insufficient_evidence"
-        }:
-            raise ValueError("Invalid alignment value")
-
-        evidence_ids = {
-            f"Evidence {i+1}"
-            for i in range(len(evidence_pack.evidences))
+        data = {
+            "clause_id": getattr(clause, "clause_id", getattr(clause, "chunk_id")),
+            "risk_level": clause_result.risk_level,
+            "alignment": alignment,
+            "summary": summary,
+            "detailed_explanation": detailed,
+            "citations": [
+                {
+                    "source": ev.source,
+                    "section_or_clause": ev.section_or_clause
+                }
+                for ev in evidence_pack.evidences
+            ],
+            "quality_score": clause_result.compliance_confidence,
+            "disclaimer": (
+                "This explanation is generated for informational purposes only and does not "
+                "constitute legal advice. Independent legal review is recommended."
+            ),
         }
 
-        for mapping in parsed.get("evidence_mapping", []):
-            if mapping.get("evidence_id") not in evidence_ids:
-                raise ValueError("Invalid or hallucinated evidence reference")
-
-        return parsed
-
-    # ------------------------------------------------------------------
-    # Quality Scoring (Deterministic)
-    # ------------------------------------------------------------------
-
-    def _score_explanation(
-        self,
-        parsed: Dict,
-        evidence_pack: EvidencePack
-    ) -> float:
-        """
-        Compute a deterministic quality score from evidence features.
-
-        Returns:
-            Score in [0.0, 1.0].
-        """
-
-        score = 0.0
-
-        # Evidence coverage
-        if len(evidence_pack.evidences) >= 2:
-            score += 0.3
-
-        # Authority strength
-        if any(ev.metadata.get("doc_type") == "rera_act" for ev in evidence_pack.evidences):
-            score += 0.3
-        elif any(ev.metadata.get("doc_type") == "state_rule" for ev in evidence_pack.evidences):
-            score += 0.2
-
-        # Jurisdiction correctness
-        score += 0.2
-
-        # Uncertainty honesty
-        if parsed["alignment"] == "insufficient_evidence":
-            score += 0.2
-
-        return round(min(score, 1.0), 2)
-
-    # ------------------------------------------------------------------
-
-    def _build_citations(self, evidence_pack: EvidencePack) -> List[Dict]:
-        """
-        Convert evidence items into a lightweight citation list.
-        """
-        return [
-            {
-                "source": ev.source,
-                "section_or_clause": ev.section_or_clause
-            }
-            for ev in evidence_pack.evidences
-        ]
-
-    def _disclaimer(self) -> str:
-        """
-        Return the standard disclaimer appended to results.
-        """
-        return (
-            "This explanation is for informational purposes only and does not "
-            "constitute legal advice. Consult a qualified legal professional."
+        return build_model(
+            ExplanationResult,
+            data,
+            strict=STRICT_SCHEMA,
+            log_fn=log_schema_drift
         )
 
-    def _determine_alignment(
-            self,
-            clause_result: ClauseUnderstandingResult,
-            evidence_pack: EvidencePack
-    ) -> str:
-        """
-        Compute a coarse alignment label when evidence exists.
-        """
+    # -------------------------------------------------
+    # Stance determination
+    # -------------------------------------------------
+
+    def _determine_stance(self, compliance_confidence: float, compliance_mode: str) -> str:
+        if compliance_mode == "CONTRADICTION":
+            return "VIOLATION"
+
+        if compliance_confidence >= 0.8:
+            return "ASSERTIVE"
+
+        if compliance_confidence >= 0.5:
+            return "CAUTIOUS"
+
+        return "WARNING"
+
+    # -------------------------------------------------
+    # Alignment determination
+    # -------------------------------------------------
+
+    def _determine_alignment(self, clause_result, evidence_pack) -> str:
+        if clause_result.compliance_mode == "CONTRADICTION":
+            return "conflicting"
+
         if not evidence_pack.evidences:
-        return "insufficient_evidence"
+            return "insufficient_evidence"
 
         if clause_result.compliance_mode == "IMPLICIT":
             return "aligned"
 
-        if clause_result.risk_level == "high":
-            return "conflicting"
-
         return "partially_aligned"
+
+    # -------------------------------------------------
+    # Explanation Builder
+    # -------------------------------------------------
+
+    def _build_explanation(
+        self,
+        clause,
+        clause_result,
+        evidence_pack,
+        stance: str
+    ) -> tuple[str, str]:
+
+        intent = clause_result.intent.replace("_", " ").title()
+
+        if stance == "ASSERTIVE":
+            return self._assertive_template(clause, clause_result, evidence_pack, intent)
+
+        if stance == "CAUTIOUS":
+            return self._cautious_template(clause, clause_result, evidence_pack, intent)
+
+        if stance == "WARNING":
+            return self._warning_template(clause, clause_result, evidence_pack, intent)
+
+        return self._violation_template(clause, clause_result, evidence_pack, intent)
+
+    # -------------------------------------------------
+    # Templates
+    # -------------------------------------------------
+
+    def _assertive_template(self, clause, clause_result, evidence_pack, intent):
+        summary = (
+            f"This clause complies with RERA requirements relating to {intent.lower()}."
+        )
+
+        detailed = (
+            f"The reviewed clause addresses {intent.lower()} and explicitly or implicitly "
+            f"incorporates the protections provided under the Real Estate (Regulation and "
+            f"Development) Act, 2016. The clause follows the standard structure prescribed "
+            f"under RERA and does not dilute the statutory rights of the allottee.\n\n"
+            f"No deviation from applicable RERA provisions has been identified."
+        )
+
+        return summary, detailed
+
+    def _cautious_template(self, clause, clause_result, evidence_pack, intent):
+        summary = (
+            f"This clause appears to align with RERA provisions on {intent.lower()}, "
+            f"subject to interpretation."
+        )
+
+        detailed = (
+            f"The clause addresses {intent.lower()} and refers to obligations under the "
+            f"RERA Act or applicable rules. While no direct contradiction with RERA has "
+            f"been identified, the clause relies on statutory incorporation rather than "
+            f"explicit articulation of rights.\n\n"
+            f"It is advisable to review this clause in conjunction with the applicable "
+            f"RERA provisions to ensure full clarity."
+        )
+
+        return summary, detailed
+
+    def _warning_template(self, clause, clause_result, evidence_pack, intent):
+        summary = (
+            f"This clause may pose legal risk in relation to {intent.lower()}."
+        )
+
+        detailed = (
+            f"The clause relates to {intent.lower()}, but its alignment with RERA "
+            f"protections is unclear or incomplete. The language used may result in "
+            f"ambiguity regarding the allottee’s statutory rights.\n\n"
+            f"Independent legal review is recommended before relying on this clause."
+        )
+
+        return summary, detailed
+
+    def _violation_template(self, clause, clause_result, evidence_pack, intent):
+        summary = (
+            f"This clause is not compliant with RERA and may be legally unenforceable."
+        )
+
+        detailed = (
+            f"The clause attempts to restrict or waive rights guaranteed to the allottee "
+            f"under the RERA framework. Such provisions are not permitted under the Act "
+            f"and are likely to be struck down by the RERA Authority or Adjudicating Officer.\n\n"
+            f"The allottee should not rely on this clause as it conflicts with statutory law."
+        )
+
+        return summary, detailed
