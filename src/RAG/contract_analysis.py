@@ -30,6 +30,11 @@ class KeyIssue(StrictBaseModel):
 
 class ClauseAnalysisResult(StrictBaseModel):
     clause_id: str
+    # (lawyer-grade reference)
+    normalized_reference: Optional[str] = None   # "Clause 7.3"
+    heading: Optional[str] = None                # "Possession Timeline"
+    statutory_refs: List[str] = []               # ["RERA Act, 2016 – Section 18"]
+
     risk_level: str
     alignment: str
 
@@ -41,6 +46,8 @@ class ClauseAnalysisResult(StrictBaseModel):
 
     citations: List[Dict[str, str]] = []
     recommended_action: Optional[str] = None
+    issue_reason: Optional[str] = None
+
 
 
 class ContractAnalysisResult(StrictBaseModel):

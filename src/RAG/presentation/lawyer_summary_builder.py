@@ -1,3 +1,5 @@
+# src/RAG/presentation/lawyer_summary_builder.py
+
 from RAG.presentation.lawyer_summary import LawyerFriendlySummary
 from RAG.contract_analysis import ContractAnalysisResult
 from configs.callibration.callibration_config_loader import CalibrationConfig
@@ -15,19 +17,14 @@ def build_lawyer_friendly_summary(
     total = sum(dist.model_dump().values())
 
     # -----------------------------
-    # Verdict logic (calibrated)
+    # Verdict logic
     # -----------------------------
-    if (
-        calibration.thresholds.get("contradiction_fatal", False)
-        and dist.contradiction > 0
-    ):
+    if calibration.thresholds.get("contradiction_fatal") and dist.contradiction > 0:
         verdict = "do_not_sign"
         headline = "High legal risk: agreement should not be relied upon as drafted."
 
-    elif (
-        total > 0
-        and dist.insufficient_evidence
-        > total * calibration.thresholds.get("insufficient_evidence_ratio", 0.25)
+    elif dist.insufficient_evidence > total * calibration.thresholds.get(
+        "insufficient_evidence_ratio", 0.25
     ):
         verdict = "review_required"
         headline = "Moderate legal risk: key statutory protections are unclear."
@@ -37,44 +34,49 @@ def build_lawyer_friendly_summary(
         headline = "Low legal risk: agreement broadly aligns with RERA protections."
 
     # -----------------------------
-    # Why this matters (legal reasoning)
+    # Why this matters
     # -----------------------------
     why = []
 
-    if dist.contradiction > 0:
+    if dist.contradiction:
         why.append(
-            f"{dist.contradiction} clauses directly conflict with statutory RERA protections."
+            f"{dist.contradiction} clauses directly conflict with mandatory RERA provisions."
         )
 
-    if dist.insufficient_evidence > 0:
+    if dist.insufficient_evidence:
         why.append(
-            f"{dist.insufficient_evidence} clauses do not clearly articulate mandatory statutory rights."
+            f"{dist.insufficient_evidence} clauses fail to explicitly preserve statutory rights "
+            f"(e.g. Sections 14 and 18 of the RERA Act)."
         )
 
-    if dist.partially_aligned > 0:
+    if dist.partially_aligned:
         why.append(
-            f"{dist.partially_aligned} clauses rely on implicit or partial compliance, increasing interpretation risk."
+            f"{dist.partially_aligned} clauses rely on implicit compliance, increasing interpretation risk."
         )
 
     # -----------------------------
-    # Key risk statistics
+    # Key stats
     # -----------------------------
     stats = [
         f"Clauses reviewed: {total}",
-        f"Overall legal risk score: {score} (scale: 0 = high risk, 1 = low risk)",
+        f"Overall legal risk score: {score} (0 = high risk, 1 = low risk)",
         f"High-risk clauses (score < 0.5): {len([i for i in issues if i.quality_score < 0.5])}",
     ]
 
     # -----------------------------
-    # Critical clauses (top 5)
+    # Critical clauses (lawyer-grade)
     # -----------------------------
-    critical = [
-        (
-            f"Clause {i.clause_id}: {i.issue} "
-            f"(risk: {i.risk_level}, score: {i.quality_score})"
+    critical = []
+    for i in issues[:5]:
+        ref = getattr(i, "normalized_reference", None) or f"Clause {i.clause_id}"
+        heading = getattr(i, "heading", None)
+        label = f"{ref}"
+        if heading:
+            label += f" – {heading}"
+
+        critical.append(
+            f"{label}: {i.issue} (risk: {i.risk_level}, score: {i.quality_score})"
         )
-        for i in issues[:5]
-    ]
 
     # -----------------------------
     # Recommended actions
@@ -83,19 +85,19 @@ def build_lawyer_friendly_summary(
 
     if verdict == "do_not_sign":
         actions.extend([
-            "Do not sign this agreement in its current form.",
-            "Renegotiate clauses that conflict with statutory RERA protections.",
-            "Seek formal legal advice before execution."
+            "Do not sign the agreement without renegotiation.",
+            "Remove or amend clauses conflicting with RERA.",
+            "Seek formal legal opinion."
         ])
     elif verdict == "review_required":
         actions.extend([
-            "Request clarification or redrafting of ambiguous clauses.",
+            "Seek clarification or redrafting of ambiguous clauses.",
             "Ensure statutory RERA rights are explicitly stated.",
-            "Review identified high-risk clauses before signing."
+            "Review high-risk clauses before execution."
         ])
     else:
         actions.append(
-            "Agreement appears legally acceptable; retain documentation for records."
+            "Agreement appears legally acceptable; retain executed copy for records."
         )
 
     return LawyerFriendlySummary(

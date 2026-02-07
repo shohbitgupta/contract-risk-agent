@@ -43,18 +43,85 @@ class UserContractChunk(StrictBaseModel):
 # -------------------------------------------------------------------
 
 class ClauseUnderstandingResult(StrictBaseModel):
+    """
+    Structured output of the Clause Understanding Agent.
+
+    This represents legal interpretation and grounding,
+    NOT a final legal conclusion.
+    """
+
+    # -----------------------------
+    # Clause identity
+    # -----------------------------
     clause_id: str
+
+    # -----------------------------
+    # Intent & obligation
+    # -----------------------------
     intent: str
-    obligation_type: str
-    risk_level: str
+    obligation_type: str  # promoter | allottee | mutual | unclear
+
+    # -----------------------------
+    # Risk & validation
+    # -----------------------------
+    risk_level: str  # low | medium | high
     needs_legal_validation: bool
 
-    retrieval_queries: List[Dict[str, Any]]
+    # -----------------------------
+    # Retrieval instructions
+    # -----------------------------
+    retrieval_queries: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Vector retrieval instructions derived from intent rules"
+    )
 
-    compliance_mode: Optional[str] = None
+    # -----------------------------
+    # Compliance interpretation
+    # -----------------------------
+    compliance_mode: Optional[str] = Field(
+        default=None,
+        description="IMPLICIT | EXPLICIT | CONTRADICTION | UNKNOWN"
+    )
 
-    notes: Optional[List[str]] = None
-    compliance_confidence: Optional[float] = None
+    compliance_confidence: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Confidence score for compliance interpretation"
+    )
+
+    # -----------------------------
+    # Statutory anchoring (NEW)
+    # -----------------------------
+    statutory_basis: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description=(
+            "Applicable statutory provisions. Example: {"
+            "'act': 'RERA Act, 2016', "
+            "'sections': ['Section 18(1)'], "
+            "'state_rules': ['UP RERA Rules, Rule 16']"
+            "}"
+        )
+    )
+
+    # -----------------------------
+    # Diagnostics
+    # -----------------------------
+    notes: Optional[List[str]] = Field(
+        default=None,
+        description="Diagnostic notes for ambiguity or edge cases"
+    )
+
+    # -----------------------------
+    # Semantic confidence
+    # -----------------------------
+    semantic_confidence: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Semantic confidence score for the clause"
+    )
+
 
 
 # -------------------------------------------------------------------

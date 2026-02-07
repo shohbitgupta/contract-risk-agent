@@ -34,45 +34,54 @@ class RiskLevel(Enum):
     UNKNOWN = "unknown"
 
 
+from dataclasses import dataclass, field
+from typing import Optional, List
+
 @dataclass
 class ContractChunk:
     """
     Domain object representing a single distinct unit of the contract.
-
-    Example:
-        >>> ContractChunk("1.1", "Possession clause...", ChunkType.CLAUSE)
-        ContractChunk(...)
     """
-    chunk_id: str  # e.g., "1.1", "SCHEDULE-A", "NOTE_1"
-    text: str  # The raw text content
-    chunk_type: ChunkType  # Structural classification
 
-    # Metadata
-    title: Optional[str] = None  # Extracted header/title
-    page_number: Optional[int] = None  # (Optional) If OCR provides it
-    confidence: float = 0.0  # 0.0 to 1.0 structural confidence
+    # Core identity
+    chunk_id: str                    # "(iii)", "1.2", "SCHEDULE-A"
+    text: str
+    chunk_type: ChunkType
 
-    # Semantic Enrichment (Filled by Tagger)
+    # Structural metadata
+    title: Optional[str] = None      # "Possession Timeline"
+    parent_section: Optional[str] = None   # "Clause 7"
+    normalized_reference: Optional[str] = None  # "Clause 7.3"
+    page_number: Optional[int] = None
+    confidence: float = 0.0
+
+    # Semantic enrichment
     tags: List[str] = field(default_factory=list)
     risk_level: RiskLevel = RiskLevel.UNKNOWN
 
-    def to_dict(self):
-        """
-        Convert the chunk into a serializable dict.
+    # Legal enrichment
+    statutory_refs: List[str] = field(default_factory=list)
+    intent: Optional[str] = None  # possession_delay, refund_delay, etc.
 
-        Example:
-            >>> ContractChunk("1.1", "text", ChunkType.CLAUSE).to_dict()["id"]
-            '1.1'
-        """
+    # Semantic enrichment
+    semantic_confidence: float = 0.0
+
+    def to_dict(self):
         return {
             "id": self.chunk_id,
-            "type": self.chunk_type.value,
+            "normalized_reference": self.normalized_reference,
+            "parent_section": self.parent_section,
             "title": self.title,
+            "type": self.chunk_type.value,
             "text": self.text,
             "tags": self.tags,
             "risk": self.risk_level.value,
-            "confidence": self.confidence
+            "confidence": self.confidence,
+            "statutory_refs": self.statutory_refs,
+            "intent": self.intent,
+            "semantic_confidence": self.semantic_confidence,
         }
+
 
 import re
 from typing import List, Optional
@@ -239,6 +248,7 @@ class UserContractChunker:
         """
         Construct a ContractChunk with metadata fields populated.
         """
+        semantic_confidence = self._compute_semantic_confidence(cid, text, chunk_type, title)
 
         return ContractChunk(
             chunk_id=cid,
@@ -248,6 +258,7 @@ class UserContractChunker:
             page_number=None,
             confidence=self._confidence_for(cid),
             tags=[],
+            semantic_confidence=semantic_confidence,
             risk_level=RiskLevel.UNKNOWN
         )
 
@@ -387,3 +398,30 @@ class UserContractChunker:
 
         return clauses
 
+    def _compute_semantic_confidence(
+        self,
+        cid: str,
+        text: str,
+        chunk_type: ChunkType,
+        title: Optional[str]
+    ) -> float:
+        """
+        Compute semantic confidence score for a chunk.
+        """
+        score = 0.0
+
+    # 1️⃣ Structural validity
+        if cid and any(char.isdigit() for char in cid):
+         score += 0.2
+
+    # 3️⃣ Title clarity
+        if title and len(title) > 5:
+         score += 0.15
+
+    # 4️⃣ Text sufficiency
+        if len(text) > 200:
+          score += 0.1
+        if len(text) > 500:
+          score += 0.1
+
+        return round(min(score, 0.7), 2)

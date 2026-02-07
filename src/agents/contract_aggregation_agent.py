@@ -82,8 +82,13 @@ class ContractAggregationAgent:
             alignment_weight = ALIGNMENT_WEIGHTS.get(alignment, 0.4)
             risk_multiplier = RISK_MULTIPLIERS.get(risk, 0.85)
 
+            semantic_conf = getattr(c, "semantic_confidence", 1.0)
+
             clause_score = round(
-                c.quality_score * alignment_weight * risk_multiplier,
+                c.quality_score
+                * alignment_weight
+                * risk_multiplier
+                * (0.7 + 0.3 * semantic_conf),
                 3
             )
 
@@ -103,6 +108,12 @@ class ContractAggregationAgent:
                     )
                 )
 
+        assert all(
+            0.0 <= getattr(c, "semantic_confidence", 1.0) <= 1.0
+            for c in clauses
+        ), "semantic_confidence must be in [0,1]"
+
+        
         # -----------------------------
         # Schema guard
         # -----------------------------
@@ -116,7 +127,8 @@ class ContractAggregationAgent:
         # -----------------------------
         # Contract score
         # -----------------------------
-        contract_score = self._percentile_contract_score(weighted_scores)
+        contract_score = max(self._percentile_contract_score(weighted_scores), 0.15)
+
         risk_grade = self._risk_grade(contract_score)
 
         summary = ContractSummary(

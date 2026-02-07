@@ -1,21 +1,16 @@
 # =========================================================
-# Real Estate Intent Rules (UP-RERA)
-# =========================================================
-# This file defines:
-# - What legal intent a clause represents
-# - Which vector index to query
-# - What filters apply
+# Real Estate Intent Rules (India – RERA)
 # =========================================================
 
-version: "1.1"
+version: "1.2"
 
 meta:
   domain: "indian_real_estate"
   framework: "RERA"
   description: >
     Intent detection and legal retrieval rules for Indian real estate
-    Builder Buyer Agreements (BBAs), aligned with Central RERA Act,
-    State RERA Rules, and State Model Agreements.
+    Builder Buyer Agreements (BBAs), aligned with the Central RERA Act,
+    State RERA Rules, and Model Agreements.
 
 # ============================================================
 # GLOBAL SETTINGS
@@ -36,7 +31,7 @@ global:
   conservative_bias: true
 
 # ============================================================
-# BASE INTENTS (COMMON ACROSS STATES)
+# BASE INTENTS (CENTRAL LAW – DO NOT OVERRIDE)
 # ============================================================
 
 intents:
@@ -53,8 +48,11 @@ intents:
       - "completion period"
       - "offer of possession"
 
-    mandatory_rera_anchors:
-      - "RERA_ACT_SECTION_18"
+    statutory_basis:
+      act: "Real Estate (Regulation and Development) Act, 2016"
+      sections:
+        - "Section 18(1)"
+        - "Section 19(4)"
 
     expected_compliance_mode:
       - "IMPLICIT"
@@ -94,8 +92,10 @@ intents:
       - "natural calamity"
       - "government order"
 
-    mandatory_rera_anchors:
-      - "RERA_ACT_SECTION_6"
+    statutory_basis:
+      act: "RERA Act, 2016"
+      sections:
+        - "Section 6"
 
     expected_compliance_mode:
       - "IMPLICIT"
@@ -112,10 +112,6 @@ intents:
       indexes:
         - "model_bba"
         - "rera_act"
-      filters:
-        doc_type:
-          - "model_agreement"
-          - "rera_act"
 
   refund_and_withdrawal:
     intent_name: "refund_and_withdrawal"
@@ -128,8 +124,10 @@ intents:
       - "termination by allottee"
       - "interest payable"
 
-    mandatory_rera_anchors:
-      - "RERA_ACT_SECTION_18"
+    statutory_basis:
+      act: "RERA Act, 2016"
+      sections:
+        - "Section 18(1)(a)"
 
     expected_compliance_mode:
       - "IMPLICIT"
@@ -149,11 +147,6 @@ intents:
         - "model_bba"
         - "rera_act"
         - "rera_rules"
-      filters:
-        doc_type:
-          - "model_agreement"
-          - "rera_act"
-          - "state_rule"
 
   defect_liability:
     intent_name: "defect_liability"
@@ -166,8 +159,10 @@ intents:
       - "rectification"
       - "five years"
 
-    mandatory_rera_anchors:
-      - "RERA_ACT_SECTION_14_3"
+    statutory_basis:
+      act: "RERA Act, 2016"
+      sections:
+        - "Section 14(3)"
 
     expected_compliance_mode:
       - "IMPLICIT"
@@ -185,32 +180,6 @@ intents:
       indexes:
         - "model_bba"
         - "rera_act"
-      filters:
-        doc_type:
-          - "model_agreement"
-          - "rera_act"
-
-  rate_of_interest:
-    intent_name: "rate_of_interest"
-    description: >
-      Clauses defining interest payable for defaults.
-
-    keywords:
-      - "rate of interest"
-      - "interest payable"
-      - "mclr"
-      - "sbi lending rate"
-
-    expected_compliance_mode:
-      - "IMPLICIT"
-      - "EXPLICIT"
-
-    retrieval:
-      indexes:
-        - "rera_rules"
-      filters:
-        doc_type:
-          - "state_rule"
 
   jurisdiction:
     intent_name: "jurisdiction"
@@ -223,9 +192,12 @@ intents:
       - "dispute resolution"
       - "authority"
 
-    mandatory_rera_anchors:
-      - "RERA_ACT_SECTION_31"
-      - "RERA_ACT_SECTION_71"
+    statutory_basis:
+      act: "RERA Act, 2016"
+      sections:
+        - "Section 31"
+        - "Section 71"
+        - "Section 79"
 
     expected_compliance_mode:
       - "IMPLICIT"
@@ -242,45 +214,33 @@ intents:
       indexes:
         - "model_bba"
         - "rera_act"
-      filters:
-        doc_type:
-          - "model_agreement"
-          - "rera_act"
 
 # ============================================================
-# STATE-SPECIFIC OVERRIDES
+# STATE-SPECIFIC SUPPLEMENTS (RULES ONLY – NO ACT OVERRIDE)
 # ============================================================
 
 state_overrides:
   uttar_pradesh:
-    rate_of_interest:
-      mandatory_rera_anchors:
-        - "UP_RERA_RULE_15"
     delay_in_possession:
-      mandatory_rera_anchors:
-        - "UP_RERA_RULE_16"
-        - "RERA_ACT_SECTION_18"
+      state_rules:
+        - "UP RERA Rules, Rule 16"
+
+    rate_of_interest:
+      state_rules:
+        - "UP RERA Rules, Rule 15"
 
   maharashtra:
-    rate_of_interest:
-      mandatory_rera_anchors:
-        - "MAHA_RERA_RULE_18"
     delay_in_possession:
-      mandatory_rera_anchors:
-        - "MAHA_RERA_RULE_18"
-        - "RERA_ACT_SECTION_18"
+      state_rules:
+        - "MahaRERA Rules, Rule 18"
 
   karnataka:
-    rate_of_interest:
-      mandatory_rera_anchors:
-        - "KARNATAKA_RERA_RULE_18"
     delay_in_possession:
-      mandatory_rera_anchors:
-        - "KARNATAKA_RERA_RULE_18"
-        - "RERA_ACT_SECTION_18"
+      state_rules:
+        - "Karnataka RERA Rules, Rule 18"
 
 # ============================================================
-# VIOLATION-ONLY INTENTS (ILLEGAL BY DESIGN)
+# VIOLATION-ONLY INTENTS (ILLEGAL PER SE)
 # ============================================================
 
 violation_only_intents:
@@ -293,68 +253,38 @@ violation_only_intents:
       - "waives all rights"
       - "no claim shall lie"
       - "irrevocably waives"
-      - "no remedy shall be available"
 
     violated_laws:
-      - "RERA_ACT_SECTION_18"
-      - "RERA_ACT_SECTION_79"
-      - "RERA_ACT_SECTION_88"
+      act: "RERA Act, 2016"
+      sections:
+        - "Section 18"
+        - "Section 79"
+        - "Section 88"
 
+    legal_effect: "Void and unenforceable"
     risk_level: "high"
-    resolution: "CONTRADICTION"
 
     retrieval:
       indexes:
         - "rera_act"
-      filters:
-        doc_type:
-          - "rera_act"
 
   exclusion_of_rera_jurisdiction:
     intent_name: "exclusion_of_rera_jurisdiction"
-    description: >
-      Clauses attempting to exclude RERA authority jurisdiction.
 
     keywords:
       - "only civil courts shall have jurisdiction"
       - "excluding rera authority"
-      - "no complaint shall lie before authority"
 
     violated_laws:
-      - "RERA_ACT_SECTION_31"
-      - "RERA_ACT_SECTION_71"
-      - "RERA_ACT_SECTION_79"
+      act: "RERA Act, 2016"
+      sections:
+        - "Section 31"
+        - "Section 71"
+        - "Section 79"
 
+    legal_effect: "Jurisdiction clause invalid"
     risk_level: "high"
-    resolution: "CONTRADICTION"
 
     retrieval:
       indexes:
         - "rera_act"
-      filters:
-        doc_type:
-          - "rera_act"
-
-  unilateral_modification:
-    intent_name: "unilateral_modification"
-    description: >
-      Clauses allowing promoter unilateral changes without consent.
-
-    keywords:
-      - "sole discretion of the promoter"
-      - "absolute right to alter"
-      - "without consent of allottee"
-
-    violated_laws:
-      - "RERA_ACT_SECTION_14"
-      - "RERA_ACT_SECTION_12"
-
-    risk_level: "high"
-    resolution: "CONTRADICTION"
-
-    retrieval:
-      indexes:
-        - "rera_act"
-      filters:
-        doc_type:
-          - "rera_act"

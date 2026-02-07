@@ -17,3 +17,19 @@ weights:
     low: 1.0
     medium: 0.85
     high: 0.6
+
+observations:
+  possession_delay:
+    typical_outcome: builder_liability
+    ambiguity_tolerance: low
+    reference_cases:
+      - "RERA UP Order 2021/134"
+      - "RERA Maha Order 2019/77"
+
+  refund_delay:
+    typical_outcome: interest_awarded
+    ambiguity_tolerance: none
+
+  termination_unilateral:
+    typical_outcome: clause_read_down
+    ambiguity_tolerance: low

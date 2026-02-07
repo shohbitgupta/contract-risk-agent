@@ -1,6 +1,6 @@
 import yaml
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from RAG.models import ClauseUnderstandingResult
 from utils.schema_factory import build_model
@@ -10,9 +10,19 @@ from configs.schema_config import STRICT_SCHEMA
 
 class IntentRuleEngine:
     """
-    Deterministic intent detection engine for Indian real estate contracts
-    aligned with RERA (Central + State).
+    Deterministic intent detection engine for Indian real estate contracts,
+    aligned with the Central RERA Act and State RERA Rules.
+
+    RESPONSIBILITY:
+    - Detect intent
+    - Assign statutory anchoring (ACT + STATE RULES)
+    - Produce retrieval instructions
+    - DO NOT perform legal conclusions
     """
+
+    # =========================================================
+    # Initialization
+    # =========================================================
 
     def __init__(self, rules_path: Path):
         if not rules_path.exists():
@@ -20,6 +30,9 @@ class IntentRuleEngine:
 
         with open(rules_path, "r") as f:
             self.rules = yaml.safe_load(f)
+
+        if not self.rules:
+            raise ValueError("Intent rules YAML is empty or invalid")
 
         self.base_intents = self.rules.get("intents", {})
         self.violation_intents = self.rules.get("violation_only_intents", {})
@@ -35,14 +48,14 @@ class IntentRuleEngine:
         )
 
     # =========================================================
-    # PUBLIC API
+    # Public API
     # =========================================================
 
     def analyze(
         self,
         clause_id: str,
         clause_text: str,
-        state: str | None = None
+        state: Optional[str] = None
     ) -> ClauseUnderstandingResult:
 
         text = clause_text.lower()
@@ -50,17 +63,17 @@ class IntentRuleEngine:
         # -----------------------------------------------------
         # 1️⃣ Violation-only intents (highest priority)
         # -----------------------------------------------------
-        violation = self._match_violation_intent(text)
-        if violation:
+        violation_cfg = self._match_violation_intent(text)
+        if violation_cfg:
             return self._build_violation_result(
                 clause_id=clause_id,
-                violation_cfg=violation
+                violation_cfg=violation_cfg
             )
 
         # -----------------------------------------------------
         # 2️⃣ Base intent detection
         # -----------------------------------------------------
-        intent_key, intent_cfg = self._match_base_intent(text)
+        intent_key, base_cfg = self._match_base_intent(text)
 
         if not intent_key:
             # Conservative fallback
@@ -73,6 +86,7 @@ class IntentRuleEngine:
                 "retrieval_queries": [],
                 "compliance_mode": "UNKNOWN",
                 "compliance_confidence": 0.0,
+                "statutory_basis": None,
                 "notes": ["No matching intent rule found"],
             }
 
@@ -84,11 +98,11 @@ class IntentRuleEngine:
             )
 
         # -----------------------------------------------------
-        # 3️⃣ Apply state overrides
+        # 3️⃣ Apply state overrides (RULES ONLY)
         # -----------------------------------------------------
         effective_cfg = self._apply_state_override(
             intent_key=intent_key,
-            base_cfg=intent_cfg,
+            base_cfg=base_cfg,
             state=state
         )
 
@@ -125,6 +139,17 @@ class IntentRuleEngine:
             intent_cfg=effective_cfg
         )
 
+        # -----------------------------------------------------
+        # 🔑 9️⃣ STATUTORY BASIS (CENTRAL + STATE)
+        # -----------------------------------------------------
+        statutory_basis = self._build_statutory_basis(
+            intent_cfg=base_cfg,
+            effective_cfg=effective_cfg
+        )
+
+        # -----------------------------------------------------
+        # 10️⃣ Final result
+        # -----------------------------------------------------
         data = {
             "clause_id": clause_id,
             "intent": effective_cfg.get("intent_name", intent_key),
@@ -134,6 +159,7 @@ class IntentRuleEngine:
             "retrieval_queries": retrieval_queries,
             "compliance_mode": compliance_mode,
             "compliance_confidence": 0.0,  # filled later by ClauseUnderstandingAgent
+            "statutory_basis": statutory_basis,
             "notes": [],
         }
 
@@ -145,10 +171,10 @@ class IntentRuleEngine:
         )
 
     # =========================================================
-    # VIOLATION INTENTS
+    # Violation-only intents
     # =========================================================
 
-    def _match_violation_intent(self, text: str) -> Dict[str, Any] | None:
+    def _match_violation_intent(self, text: str) -> Optional[Dict[str, Any]]:
         for cfg in self.violation_intents.values():
             for kw in cfg.get("keywords", []):
                 if kw.lower() in text:
@@ -160,6 +186,13 @@ class IntentRuleEngine:
         clause_id: str,
         violation_cfg: Dict[str, Any]
     ) -> ClauseUnderstandingResult:
+
+        violated = violation_cfg.get("violated_laws", {})
+
+        statutory_basis = {
+            "act": violated.get("act"),
+            "sections": violated.get("sections", [])
+        }
 
         retrieval_cfg = violation_cfg.get("retrieval", {})
 
@@ -175,6 +208,7 @@ class IntentRuleEngine:
             ],
             "compliance_mode": "CONTRADICTION",
             "compliance_confidence": 0.0,
+            "statutory_basis": statutory_basis,
             "notes": ["Violation-only intent detected"],
         }
 
@@ -186,7 +220,7 @@ class IntentRuleEngine:
         )
 
     # =========================================================
-    # BASE INTENT MATCHING
+    # Base intent matching
     # =========================================================
 
     def _match_base_intent(self, text: str):
@@ -197,14 +231,14 @@ class IntentRuleEngine:
         return None, None
 
     # =========================================================
-    # STATE OVERRIDES
+    # State overrides (RULES ONLY)
     # =========================================================
 
     def _apply_state_override(
         self,
         intent_key: str,
         base_cfg: Dict[str, Any],
-        state: str | None
+        state: Optional[str]
     ) -> Dict[str, Any]:
 
         if not state:
@@ -223,7 +257,36 @@ class IntentRuleEngine:
         return merged
 
     # =========================================================
-    # COMPLIANCE MODE
+    # Statutory basis builder (NEW)
+    # =========================================================
+
+    def _build_statutory_basis(
+        self,
+        intent_cfg: Dict[str, Any],
+        effective_cfg: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Central Act sections are immutable.
+        State rules are additive only.
+        """
+
+        statutory = intent_cfg.get("statutory_basis")
+        if not statutory:
+            return None
+
+        basis = {
+            "act": statutory.get("act"),
+            "sections": list(statutory.get("sections", [])),
+        }
+
+        state_rules = effective_cfg.get("state_rules")
+        if state_rules:
+            basis["state_rules"] = list(state_rules)
+
+        return basis
+
+    # =========================================================
+    # Compliance mode detection
     # =========================================================
 
     def _detect_compliance_mode(self, text: str) -> str:
@@ -233,7 +296,7 @@ class IntentRuleEngine:
         return "UNKNOWN"
 
     # =========================================================
-    # RISK DETERMINATION
+    # Risk determination
     # =========================================================
 
     def _determine_risk(
@@ -252,7 +315,7 @@ class IntentRuleEngine:
         return self.default_risk
 
     # =========================================================
-    # RETRIEVAL QUERY BUILDER
+    # Retrieval query builder
     # =========================================================
 
     def _build_retrieval_queries(
