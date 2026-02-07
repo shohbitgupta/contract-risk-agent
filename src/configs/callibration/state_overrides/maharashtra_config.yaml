@@ -1,0 +1,24 @@
+# calibration/states/maharashtra.yaml
+state: "maharashtra"
+
+overrides:
+  thresholds:
+    insufficient_evidence_ratio: 0.20
+    high_risk_clause_score: 0.55
+
+  weights:
+    risk_multiplier:
+      medium: 0.8
+      high: 0.55
+
+  observations:
+    possession_delay:
+      ambiguity_tolerance: "none"
+      typical_outcome: "builder_liability"
+
+    interest_rate_asymmetry:
+      ambiguity_tolerance: "none"
+      typical_outcome: "rate_equalized"
+
+    termination_unilateral:
+      ambiguity_tolerance: "none"

@@ -6,6 +6,7 @@ from typing import List
 # -----------------------------
 from RAG.contract_analysis import ClauseAnalysisResult
 from RAG.user_contract_chunker import ContractChunk
+from RAG.presentation.lawyer_summary_builder import build_lawyer_friendly_summary
 
 # -----------------------------
 # Chunker
@@ -40,6 +41,10 @@ from tools.logger import setup_logger
 # -----------------------------
 from utils.chunk_filter import is_semantic_chunk
 
+# -----------------------------
+# Configs
+# -----------------------------
+from configs.callibration.callibration_config_loader import CalibrationConfig
 
 logger = setup_logger("contract-risk-system")
 
@@ -58,7 +63,8 @@ class ContractRiskAnalysisSystem:
     def __init__(
         self,
         index_registry: IndexRegistry,
-        intent_rules_path: Path
+        intent_rules_path: Path,
+        calibration_path: Path,
     ):
         self.chunker = UserContractChunker()
 
@@ -72,7 +78,11 @@ class ContractRiskAnalysisSystem:
 
         self.explanation_agent = LegalExplanationAgent()
         self.pdf_extractor = UserContractPDFExtractor()
-        self.aggregation_agent = ContractAggregationAgent()
+        self.calibration_config = CalibrationConfig(
+            central_path=calibration_path / "central_config.yaml",
+            state_override_path=calibration_path / "state_overrides/uttar_pradesh_config.yaml"
+        )
+        self.aggregation_agent = ContractAggregationAgent(calibration=self.calibration_config)
 
     # -----------------------------------------------------
 
@@ -170,18 +180,19 @@ def main(pdf_url_or_path: str) -> dict:
     index_registry.validate_state("uttar_pradesh")
 
     # -------------------------------------------------
-    # 3️⃣ Load intent rules
+    # 3️⃣ Load intent rules and calibration
     # -------------------------------------------------
     intent_rules_path = BASE_DIR / "src" / "configs" / "real_state_intent_rules.yaml"
+    calibration_path = BASE_DIR / "src" / "configs" / "callibration"
 
     # -------------------------------------------------
     # 4️⃣ Initialize system
     # -------------------------------------------------
     system = ContractRiskAnalysisSystem(
         index_registry=index_registry,
-        intent_rules_path=intent_rules_path
+        intent_rules_path=intent_rules_path,
+        calibration_path=calibration_path,
     )
-    aggregation_agent = ContractAggregationAgent()
 
 
     # -------------------------------------------------
@@ -195,12 +206,14 @@ def main(pdf_url_or_path: str) -> dict:
     if not clause_results:
         raise ValueError("No clauses produced by analysis pipeline")
 
-    analysis_details = aggregation_agent.aggregate(clause_results)
+    analysis_details = system.aggregation_agent.aggregate(clause_results)
 
     json_dump = analysis_details.model_dump(
         mode="json",
         by_alias=True
     )
+
+    lawyer_summary = build_lawyer_friendly_summary(analysis_details, system.calibration_config)
 
     logger.info(
         "Contract Analysis Completed | Score=%s | Grade=%s | Clauses=%d",
@@ -209,24 +222,10 @@ def main(pdf_url_or_path: str) -> dict:
         len(analysis_details.clauses)
     )
 
-
-
-    # -------------------------------------------------
-    # 6️⃣ Console output (human readable)
-    # -------------------------------------------------
-    # for res in clause_results:
-    #     logger.info("===================================")
-    #     logger.info(f"Clause ID      : {res.clause_id}")
-    #     logger.info(f"Risk Level     : {res.risk_level}")
-    #     logger.info(f"Alignment      : {res.alignment}")
-    #     logger.info(f"Summary        : {res.plain_summary}")
-    #     logger.info(f"Action         : {res.recommended_action}")
-    #     logger.info(f"Score          : {res.quality_score}")
-    #     logger.info("Citations:")
-    #     for c in res.citations:
-    #         logger.info(f"- {c['source']} ({c['ref']})")
-    #     logger.info("===================================\n")
-
+    logger.info("===================================")
+    logger.info("*********LAWYER SUMMARY:*********")
+    logger.info(lawyer_summary.model_dump(mode="json"))
+    logger.info("===================================")
     return json_dump
 
 

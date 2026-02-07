@@ -1,0 +1,18 @@
+state: "uttar_pradesh"
+
+overrides:
+  thresholds:
+    insufficient_evidence_ratio: 0.35
+
+  weights:
+    risk_multiplier:
+      medium: 0.9
+      high: 0.7
+
+  observations:
+    possession_delay:
+      ambiguity_tolerance: "medium"
+      typical_outcome: "conditional_relief"
+
+    refund_delay:
+      ambiguity_tolerance: "low"

@@ -1,0 +1,19 @@
+# calibration/central.yaml
+version: "rera-central-v1"
+
+thresholds:
+  contradiction_fatal: true
+  insufficient_evidence_ratio: 0.25
+  high_risk_clause_score: 0.5
+
+weights:
+  alignment:
+    aligned: 1.0
+    partially_aligned: 0.7
+    insufficient_evidence: 0.4
+    contradiction: 0.0
+
+  risk_multiplier:
+    low: 1.0
+    medium: 0.85
+    high: 0.6

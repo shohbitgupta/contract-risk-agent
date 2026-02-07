@@ -10,6 +10,8 @@ from RAG.contract_analysis import (
     ClauseAnalysisResult
 )
 
+from configs.callibration.callibration_config_loader import CalibrationConfig
+
 
 ALIGNMENT_WEIGHTS = {
     "aligned": 1.0,
@@ -30,10 +32,12 @@ class ContractAggregationAgent:
     Aggregates clause-level legal analysis into a contract-level,
     lawyer-defensible risk assessment.
     """
+    def __init__(self, calibration: CalibrationConfig):
+        self.calibration = calibration
 
     def aggregate(
         self,
-        clauses: List[ClauseAnalysisResult]
+        clauses: List[ClauseAnalysisResult],
     ) -> ContractAnalysisResult:
 
         if not clauses:
@@ -48,6 +52,9 @@ class ContractAggregationAgent:
             "insufficient_evidence": 0,
             "contradiction": 0
         }
+
+        ALIGNMENT_WEIGHTS = self.calibration.weights["alignment"]
+        RISK_MULTIPLIERS = self.calibration.weights["risk_multiplier"]
 
         weighted_scores: List[float] = []
         issues: List[KeyIssue] = []
