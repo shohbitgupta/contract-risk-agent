@@ -150,7 +150,8 @@ def build_lawyer_friendly_summary(
     # Critical clauses (top 5 enforceable)
     # -------------------------------------------------
     critical = [
-        f"Clause {i.clause_id}: {i.issue} "
+        f"{i.display_reference or ('Clause ' + i.clause_id)}"
+        f"{(' - ' + i.heading) if i.heading else ''}: {i.issue} "
         f"(risk level: {i.risk_level}, score: {i.quality_score})"
         for i in issues[:5]
     ]

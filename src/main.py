@@ -66,6 +66,7 @@ class ContractRiskAnalysisSystem:
         index_registry: IndexRegistry,
         intent_rules_path: Path,
         calibration_path: Path,
+        state: str,
     ):
         self.chunker = UserContractChunker()
 
@@ -80,9 +81,12 @@ class ContractRiskAnalysisSystem:
 
         self.explanation_agent = LegalExplanationAgent()
         self.pdf_extractor = UserContractPDFExtractor()
+        override_path = calibration_path / "state_overrides" / f"{state.lower()}_config.yaml"
+        state_override_path = override_path if override_path.exists() else None
+
         self.calibration_config = CalibrationConfig(
             central_path=calibration_path / "central_config.yaml",
-            state_override_path=calibration_path / "state_overrides/uttar_pradesh_config.yaml"
+            state_override_path=state_override_path,
         )
         self.aggregation_agent = ContractAggregationAgent(calibration=self.calibration_config)
 
@@ -146,12 +150,13 @@ class ContractRiskAnalysisSystem:
 # CLI / Execution Entry
 # =========================================================
 
-def main(pdf_url_or_path: str) -> dict:
+def main(pdf_url_or_path: str, state: str = "uttar_pradesh") -> dict:
     """
     CLI entry to run analysis from a PDF URL or local file path.
     """
 
     logger.info(f"Received contract PDF: {pdf_url_or_path}")
+    logger.info(f"Target state: {state}")
 
     # -------------------------------------------------
     # 1️⃣ Extract contract text
@@ -185,7 +190,7 @@ def main(pdf_url_or_path: str) -> dict:
         base_dir=BASE_DIR / "src" / "data" / "vector_indexes",
         embedding_dim=384
     )
-    index_registry.validate_state("uttar_pradesh")
+    index_registry.validate_state(state)
 
     # -------------------------------------------------
     # 3️⃣ Load intent rules and calibration
@@ -200,6 +205,7 @@ def main(pdf_url_or_path: str) -> dict:
         index_registry=index_registry,
         intent_rules_path=intent_rules_path,
         calibration_path=calibration_path,
+        state=state,
     )
 
 
@@ -208,7 +214,7 @@ def main(pdf_url_or_path: str) -> dict:
     # -------------------------------------------------
     clause_results = system.analyze_contract(
         contract_text=contract_text,
-        state="uttar_pradesh"
+        state=state,
     )
 
     if not clause_results:
@@ -222,6 +228,7 @@ def main(pdf_url_or_path: str) -> dict:
     )
 
     lawyer_summary = build_lawyer_friendly_summary(analysis_details, system.calibration_config)
+    json_dump["lawyer_summary"] = lawyer_summary.model_dump(mode="json")
 
     logger.info(
         "Contract Analysis Completed | Score=%s | Grade=%s | Clauses=%d",
@@ -249,5 +256,10 @@ if __name__ == "__main__":
         if len(sys.argv) > 1
         else "src/local_sources/F404_BBA_Shobhit Gupta.pdf"
     )
+    target_state = (
+        sys.argv[2]
+        if len(sys.argv) > 2
+        else "uttar_pradesh"
+    )
 
-    main(pdf_input)
+    main(pdf_input, state=target_state)

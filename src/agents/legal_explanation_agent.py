@@ -108,6 +108,14 @@ class LegalExplanationAgent:
         # -------------------------------------------------
         data = {
             "clause_id": clause.chunk_id,
+            "normalized_reference": (
+                getattr(clause, "normalized_reference", None)
+                or f"Clause {clause.chunk_id}"
+            ),
+            "heading": getattr(clause, "title", None),
+            "statutory_refs": [
+                f"{ref['source']} - {ref['ref']}" for ref in statutory_refs
+            ],
             "risk_level": clause_result.risk_level,
             "alignment": alignment,
 

@@ -9,6 +9,7 @@ mcp = "*"
 pydantic = "*"
 pdf2image = "*"
 pytesseract = "*"
+streamlit = "*"
 
 [dev-packages]
 pytest = "*"

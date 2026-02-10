@@ -109,14 +109,24 @@ class ContractAggregationAgent:
             # Key issues (lawyer-facing)
             # -------------------------------------------------
             if clause_score < 0.5:
+                statutory_anchor = self._extract_statutory_anchor(c)
+                evidence_reference = self._extract_evidence_reference(c)
                 issues.append(
                     KeyIssue(
                         clause_id=c.clause_id,
+                        display_reference=(
+                            c.normalized_reference or f"Clause {c.clause_id}"
+                        ),
+                        heading=c.heading,
                         risk_level=c.risk_level,
                         issue=self._issue_reason(
                             alignment=alignment,
-                            clause_role=clause_role
+                            clause_role=clause_role,
+                            statutory_anchor=statutory_anchor,
+                            evidence_reference=evidence_reference,
                         ),
+                        statutory_anchor=statutory_anchor,
+                        evidence_reference=evidence_reference,
                         recommended_action=(
                             c.recommended_action
                             or "Independent legal review is advised"
@@ -208,7 +218,13 @@ class ContractAggregationAgent:
     # Explanation helpers
     # =========================================================
 
-    def _issue_reason(self, alignment: str, clause_role: str) -> str:
+    def _issue_reason(
+        self,
+        alignment: str,
+        clause_role: str,
+        statutory_anchor: str | None = None,
+        evidence_reference: str | None = None,
+    ) -> str:
         role_prefix = {
             "obligation": "Promoter obligation",
             "right": "Allottee right",
@@ -216,12 +232,40 @@ class ContractAggregationAgent:
         }.get(clause_role, "Clause")
 
         if alignment == "contradiction":
-            return f"{role_prefix} conflicts with statutory RERA protections"
+            base = f"{role_prefix} conflicts with statutory RERA protections"
+        elif alignment == "insufficient_evidence":
+            base = f"{role_prefix} lacks clear statutory support or explicit rights"
+        else:
+            base = f"{role_prefix} requires clarification to avoid legal ambiguity"
 
-        if alignment == "insufficient_evidence":
-            return f"{role_prefix} lacks clear statutory support or explicit rights"
+        details = []
+        if statutory_anchor:
+            details.append(f"Anchor: {statutory_anchor}")
+        if evidence_reference:
+            details.append(f"Evidence: {evidence_reference}")
 
-        return f"{role_prefix} requires clarification to avoid legal ambiguity"
+        if details:
+            return f"{base} ({'; '.join(details)})"
+        return base
+
+    def _extract_statutory_anchor(self, clause: ClauseAnalysisResult) -> str | None:
+        if getattr(clause, "statutory_refs", None):
+            return clause.statutory_refs[0]
+
+        for citation in clause.citations:
+            source = str(citation.get("source", ""))
+            ref = str(citation.get("ref", ""))
+            if "rera" in source.lower():
+                return f"{source} - {ref}" if ref else source
+        return None
+
+    def _extract_evidence_reference(self, clause: ClauseAnalysisResult) -> str | None:
+        for citation in clause.citations:
+            source = str(citation.get("source", ""))
+            ref = str(citation.get("ref", ""))
+            if "rera" not in source.lower() and ref:
+                return f"{source} - {ref}"
+        return None
 
     def _summary_text(self, risk_dist: dict, raw_dist: dict, score: float) -> str:
         return (

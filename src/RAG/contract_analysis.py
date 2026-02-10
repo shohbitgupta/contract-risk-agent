@@ -22,8 +22,12 @@ class ContractSummary(StrictBaseModel):
 
 class KeyIssue(StrictBaseModel):
     clause_id: str
+    display_reference: Optional[str] = None
+    heading: Optional[str] = None
     risk_level: str
     issue: str
+    statutory_anchor: Optional[str] = None
+    evidence_reference: Optional[str] = None
     recommended_action: str
     quality_score: float = Field(ge=0.0, le=1.0)
 
