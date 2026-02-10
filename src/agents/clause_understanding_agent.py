@@ -57,17 +57,19 @@ class ClauseUnderstandingAgent:
             result=result
         )
 
-        # 2️⃣ Compute semantic confidence
-        confidence = self._compute_semantic_confidence(
+        # 3️⃣ Compute semantic confidence
+        semantic_confidence = self._compute_semantic_confidence(
             clause=clause,
             result=result
         )
+        clause_role = self._derive_clause_role(result.intent, result.obligation_type)
 
-        # 3️⃣ Attach confidence (STRICT-safe)
+        # 4️⃣ Attach confidence + role (STRICT-safe)
         result = result.model_copy(
             update={
                 "compliance_confidence": compliance_confidence,
-                "semantic_confidence": getattr(clause, "semantic_confidence", None),
+                "semantic_confidence": semantic_confidence,
+                "clause_role": clause_role,
             }
         )
 
@@ -143,6 +145,22 @@ class ClauseUnderstandingAgent:
         # ---------------------------------------------
         score = max(0.0, min(1.0, score))
         return round(score, 2)
+
+    def _derive_clause_role(self, intent: str, obligation_type: str) -> str:
+        """
+        Map intent/obligation into enforceability role used downstream.
+        """
+        if obligation_type == "allottee":
+            return "right"
+        if obligation_type == "mutual":
+            return "procedure"
+        if obligation_type == "promoter":
+            return "obligation"
+
+        if intent in {"jurisdiction", "force_majeure"}:
+            return "procedure"
+
+        return "obligation"
 
 
     def _compute_compliance_confidence(self, clause, result) -> float:

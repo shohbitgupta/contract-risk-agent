@@ -34,6 +34,7 @@ class ClauseAnalysisResult(StrictBaseModel):
     normalized_reference: Optional[str] = None   # "Clause 7.3"
     heading: Optional[str] = None                # "Possession Timeline"
     statutory_refs: List[str] = []               # ["RERA Act, 2016 – Section 18"]
+    clause_role: Optional[str] = None
 
     risk_level: str
     alignment: str
@@ -43,6 +44,8 @@ class ClauseAnalysisResult(StrictBaseModel):
 
     quality_score: float = Field(ge=0.0, le=1.0)
     compliance_confidence: float = Field(ge=0.0, le=1.0)
+    semantic_confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    groundedness_score: Optional[float] = Field(default=None, ge=0.0, le=1.0)
 
     citations: List[Dict[str, str]] = []
     recommended_action: Optional[str] = None

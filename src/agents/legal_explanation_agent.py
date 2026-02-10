@@ -90,11 +90,13 @@ class LegalExplanationAgent:
                 alignment=alignment
             )
         )
-        if retrieval_quality and retrieval_quality.get("reasons"):
-            legal_explanation += (
-                "\n\nGrounding check: "
-                + " ".join(retrieval_quality["reasons"])
-            )
+        if retrieval_quality:
+            grounding_issues = self._grounding_issues(retrieval_quality)
+            if grounding_issues:
+                legal_explanation += (
+                    "\n\nGrounding check: "
+                    + " ".join(grounding_issues[:2])
+                )
 
         # -------------------------------------------------
         # 4️⃣ Build statutory references (for UI + lawyers)
@@ -116,6 +118,12 @@ class LegalExplanationAgent:
             # Scores
             "quality_score": round(quality_score, 2),
             "compliance_confidence": round(effective_confidence, 2),
+            "semantic_confidence": round(float(semantic_conf), 2),
+            "groundedness_score": (
+                round(float(retrieval_quality.get("groundedness_score", 0.0)), 2)
+                if retrieval_quality else None
+            ),
+            "clause_role": getattr(clause_result, "clause_role", None),
 
             # Action
             "recommended_action": recommended_action,
@@ -136,6 +144,24 @@ class LegalExplanationAgent:
             strict=STRICT_SCHEMA,
             log_fn=log_schema_drift
         )
+
+    def _grounding_issues(self, retrieval_quality: Dict[str, Any]) -> List[str]:
+        issues: List[str] = []
+        if not retrieval_quality.get("coverage_ok", True):
+            issues.append("Expected statutory material was not retrieved.")
+        if not retrieval_quality.get("anchor_match", True):
+            expected = retrieval_quality.get("expected_sections") or []
+            if expected:
+                issues.append(
+                    "Retrieved evidence did not match expected sections: "
+                    + ", ".join(expected)
+                    + "."
+                )
+            else:
+                issues.append("Retrieved evidence did not match expected statutory anchors.")
+        if retrieval_quality.get("noise_penalty", 0.0) > 0.5:
+            issues.append("High retrieval noise detected; irrelevant evidence may be present.")
+        return issues
 
     # =========================================================
     # Stance determination
