@@ -51,6 +51,12 @@ class ClauseUnderstandingAgent:
             state=state
         )
 
+        # 2️⃣ Compute compliance confidence
+        compliance_confidence = self._compute_compliance_confidence(
+            clause=clause,
+            result=result
+        )
+
         # 2️⃣ Compute semantic confidence
         confidence = self._compute_semantic_confidence(
             clause=clause,
@@ -59,7 +65,10 @@ class ClauseUnderstandingAgent:
 
         # 3️⃣ Attach confidence (STRICT-safe)
         result = result.model_copy(
-            update={"compliance_confidence": confidence}
+            update={
+                "compliance_confidence": compliance_confidence,
+                "semantic_confidence": getattr(clause, "semantic_confidence", None),
+            }
         )
 
         return result
@@ -134,3 +143,20 @@ class ClauseUnderstandingAgent:
         # ---------------------------------------------
         score = max(0.0, min(1.0, score))
         return round(score, 2)
+
+
+    def _compute_compliance_confidence(self, clause, result) -> float:
+        score = 0.5
+
+        if result.intent != "unknown":
+            score += 0.2
+        if result.compliance_mode in ("IMPLICIT", "EXPLICIT"):
+            score += 0.2
+        if result.compliance_mode == "CONTRADICTION":
+            score -= 0.3
+        if result.risk_level in ("high", "medium", "low"):
+            score += 0.1
+        if clause.confidence >= 0.8:
+            score += 0.1
+
+        return round(max(0.0, min(1.0, score)), 2)

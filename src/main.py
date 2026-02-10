@@ -40,6 +40,7 @@ from tools.logger import setup_logger
 # Utils
 # -----------------------------
 from utils.chunk_filter import is_semantic_chunk
+from utils.semantic_index_evaluator import SemanticIndexEvaluator
 
 # -----------------------------
 # Configs
@@ -75,6 +76,7 @@ class ContractRiskAnalysisSystem:
         self.retrieval_orchestrator = RetrievalOrchestrator(
             index_registry=index_registry
         )
+        self.semantic_index_evaluator = SemanticIndexEvaluator()
 
         self.explanation_agent = LegalExplanationAgent()
         self.pdf_extractor = UserContractPDFExtractor()
@@ -121,11 +123,17 @@ class ContractRiskAnalysisSystem:
                 clause_result=clause_result,
                 state=state
             )
+            retrieval_quality = self.semantic_index_evaluator.evaluate(
+                clause_result=clause_result,
+                evidence_pack=evidence_pack,
+                chunk=chunk,
+            )
 
             clause_analysis = self.explanation_agent.explain(
                 clause=chunk,
                 clause_result=clause_result,
-                evidence_pack=evidence_pack
+                evidence_pack=evidence_pack,
+                retrieval_quality=retrieval_quality,
             )
 
             results.append(clause_analysis)

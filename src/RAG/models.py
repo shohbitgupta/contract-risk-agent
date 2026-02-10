@@ -123,6 +123,15 @@ class ClauseUnderstandingResult(StrictBaseModel):
     )
 
 
+    # -----------------------------
+    # Clause role
+    # -----------------------------
+    clause_role: Optional[str] = Field(
+        default=None,
+        description="Role of the clause in the contract (promoter | allottee | mutual | unclear)"
+    )
+
+
 
 # -------------------------------------------------------------------
 # Evidence

@@ -1,10 +1,11 @@
-from typing import Optional, Tuple, List, Dict
+from typing import Optional, Tuple, List, Dict, Any
 
 from tools.logger import setup_logger
 from RAG.contract_analysis import ClauseAnalysisResult
 
 from utils.schema_factory import build_model
 from utils.schema_drift import log_schema_drift
+from utils.statute_normalizer import normalize_statutory_basis
 from configs.schema_config import STRICT_SCHEMA
 
 logger = setup_logger("legal-explanation-agent")
@@ -30,16 +31,26 @@ class LegalExplanationAgent:
         self,
         clause,
         clause_result,
-        evidence_pack
+        evidence_pack,
+        retrieval_quality: Optional[Dict[str, Any]] = None,
     ) -> ClauseAnalysisResult:
 
         # -------------------------------------------------
         # 1.5️⃣ Effective confidence (lawyer-facing)
         # -------------------------------------------------
         compliance_conf = clause_result.compliance_confidence or 0.0
-        semantic_conf = getattr(clause_result, "semantic_confidence", 0.0) or 0.0
+        semantic_conf = (
+            getattr(clause_result, "semantic_confidence", None)
+            or getattr(clause, "semantic_confidence", None)
+            or getattr(clause, "confidence", 0.0)
+        )
 
         effective_confidence = min(compliance_conf, semantic_conf)
+        if retrieval_quality:
+            effective_confidence = min(
+                effective_confidence,
+                retrieval_quality.get("groundedness_score", 1.0),
+            )
 
         # -------------------------------------------------
         # 1️⃣ Determine stance
@@ -56,6 +67,9 @@ class LegalExplanationAgent:
             clause_result=clause_result,
             evidence_pack=evidence_pack
         )
+        if retrieval_quality and clause_result.compliance_mode != "CONTRADICTION":
+            if not retrieval_quality.get("coverage_ok", True) or not retrieval_quality.get("anchor_match", True):
+                alignment = "insufficient_evidence"
 
         # -------------------------------------------------
         # 2b️⃣ Conservative downgrade for unknown intent
@@ -76,6 +90,11 @@ class LegalExplanationAgent:
                 alignment=alignment
             )
         )
+        if retrieval_quality and retrieval_quality.get("reasons"):
+            legal_explanation += (
+                "\n\nGrounding check: "
+                + " ".join(retrieval_quality["reasons"])
+            )
 
         # -------------------------------------------------
         # 4️⃣ Build statutory references (for UI + lawyers)
@@ -278,7 +297,9 @@ class LegalExplanationAgent:
         """
         Converts statutory_basis into readable legal text.
         """
-        basis = getattr(clause_result, "statutory_basis", None)
+        basis = normalize_statutory_basis(
+            getattr(clause_result, "statutory_basis", None)
+        )
         if not basis:
             return None
 
@@ -299,7 +320,9 @@ class LegalExplanationAgent:
         Structured statutory citations for UI / downstream systems.
         """
         refs = []
-        basis = getattr(clause_result, "statutory_basis", None)
+        basis = normalize_statutory_basis(
+            getattr(clause_result, "statutory_basis", None)
+        )
         if not basis:
             return refs
 

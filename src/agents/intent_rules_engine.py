@@ -5,6 +5,10 @@ from typing import Dict, Any, List, Optional
 from RAG.models import ClauseUnderstandingResult
 from utils.schema_factory import build_model
 from utils.schema_drift import log_schema_drift
+from utils.statute_normalizer import (
+    anchors_to_sections,
+    normalize_statutory_basis,
+)
 from configs.schema_config import STRICT_SCHEMA
 
 
@@ -187,12 +191,22 @@ class IntentRuleEngine:
         violation_cfg: Dict[str, Any]
     ) -> ClauseUnderstandingResult:
 
-        violated = violation_cfg.get("violated_laws", {})
-
-        statutory_basis = {
-            "act": violated.get("act"),
-            "sections": violated.get("sections", [])
-        }
+        violated = violation_cfg.get("violated_laws", {}) or {}
+        statutory_basis = None
+        if isinstance(violated, dict):
+            statutory_basis = normalize_statutory_basis(
+                {
+                    "act": violated.get("act"),
+                    "sections": violated.get("sections", []),
+                }
+            )
+        elif isinstance(violated, list):
+            statutory_basis = normalize_statutory_basis(
+                {
+                    "act": "RERA Act, 2016",
+                    "sections": anchors_to_sections([str(v) for v in violated]),
+                }
+            )
 
         retrieval_cfg = violation_cfg.get("retrieval", {})
 
@@ -271,19 +285,26 @@ class IntentRuleEngine:
         """
 
         statutory = intent_cfg.get("statutory_basis")
-        if not statutory:
-            return None
+        mandatory_anchors = intent_cfg.get("mandatory_rera_anchors", [])
 
-        basis = {
-            "act": statutory.get("act"),
-            "sections": list(statutory.get("sections", [])),
-        }
+        if statutory:
+            basis = {
+                "act": statutory.get("act"),
+                "sections": list(statutory.get("sections", [])),
+            }
+        elif mandatory_anchors:
+            basis = {
+                "act": "RERA Act, 2016",
+                "sections": anchors_to_sections(mandatory_anchors),
+            }
+        else:
+            return None
 
         state_rules = effective_cfg.get("state_rules")
         if state_rules:
             basis["state_rules"] = list(state_rules)
 
-        return basis
+        return normalize_statutory_basis(basis)
 
     # =========================================================
     # Compliance mode detection
