@@ -140,7 +140,8 @@ class IntentRuleEngine:
         # -----------------------------------------------------
         retrieval_queries = self._build_retrieval_queries(
             intent_key=intent_key,
-            intent_cfg=effective_cfg
+            intent_cfg=effective_cfg,
+            base_cfg=base_cfg,
         )
 
         # -----------------------------------------------------
@@ -209,15 +210,26 @@ class IntentRuleEngine:
             )
 
         retrieval_cfg = violation_cfg.get("retrieval", {})
+        sections = statutory_basis.get("sections", []) if statutory_basis else []
+        intent_name = violation_cfg["intent_name"]
+        phrases = violation_cfg.get("retrieval_phrases") or []
+        query_text = " ".join(
+            filter(None, [intent_name, " ".join(sections), " ".join(phrases)])
+        ).strip()
 
         data = {
             "clause_id": clause_id,
-            "intent": violation_cfg["intent_name"],
+            "intent": intent_name,
             "obligation_type": "promoter",
             "risk_level": violation_cfg.get("risk_level", "high"),
             "needs_legal_validation": True,
             "retrieval_queries": [
-                {"index": idx, "filters": retrieval_cfg.get("filters", {})}
+                {
+                    "index": idx,
+                    "intent": intent_name,
+                    "filters": retrieval_cfg.get("filters", {}),
+                    "query_text": query_text or intent_name,
+                }
                 for idx in retrieval_cfg.get("indexes", [])
             ],
             "compliance_mode": "CONTRADICTION",
@@ -342,18 +354,30 @@ class IntentRuleEngine:
     def _build_retrieval_queries(
         self,
         intent_key: str,
-        intent_cfg: Dict[str, Any]
+        intent_cfg: Dict[str, Any],
+        base_cfg: Dict[str, Any] | None = None,
     ) -> List[Dict[str, Any]]:
 
         retrieval = intent_cfg.get("retrieval", {})
         indexes = retrieval.get("indexes", [])
         filters = retrieval.get("filters", {})
 
+        statutory = (base_cfg or intent_cfg).get("statutory_basis") or {}
+        sections = statutory.get("sections", []) or []
+        description = (intent_cfg.get("description") or intent_key).replace("\n", " ").strip()
+        if len(description) > 300:
+            description = description[:300]
+        phrases = intent_cfg.get("retrieval_phrases") or []
+        query_text = " ".join(
+            filter(None, [description, " ".join(sections), " ".join(phrases)])
+        ).strip()
+
         return [
             {
                 "index": idx,
                 "intent": intent_key,
-                "filters": filters
+                "filters": filters,
+                "query_text": query_text or intent_key,
             }
             for idx in indexes
         ]

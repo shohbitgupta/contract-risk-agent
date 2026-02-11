@@ -145,6 +145,7 @@ class UserContractChunker:
         """
         normalized = self._normalize(text)
         raw_clauses = self._split_into_raw_clauses(normalized)
+        raw_clauses = self._merge_small_subclauses(raw_clauses)
 
         chunks: List[ContractChunk] = []
 
@@ -222,6 +223,44 @@ class UserContractChunker:
 
         matches = sorted(matches, key=lambda m: m.start())
         return self._split_by_matches(text, matches)
+
+    # Sub-clause merge: (i)(ii)(iii) with short text -> one chunk for better RERA relevance
+    _SUBCLAUSE_PATTERN = re.compile(r"^\([a-z]+\)\s*$", re.IGNORECASE)
+    _MAX_SUBCLAUSE_LEN = 280
+
+    def _merge_small_subclauses(
+        self,
+        raw_clauses: List[tuple],
+    ) -> List[tuple]:
+        if not raw_clauses:
+            return raw_clauses
+        out: List[tuple] = []
+        run: List[tuple] = []
+
+        def flush_run():
+            if not run:
+                return
+            if len(run) == 1:
+                out.append(run[0])
+            else:
+                first_cid, _ = run[0]
+                combined = "\n\n".join(t for _, t in run)
+                out.append((first_cid, combined))
+            run.clear()
+
+        for cid, clause_text in raw_clauses:
+            cid_stripped = (cid or "").strip()
+            is_sub = bool(self._SUBCLAUSE_PATTERN.match(cid_stripped))
+            short = len((clause_text or "").strip()) <= self._MAX_SUBCLAUSE_LEN
+
+            if is_sub and short:
+                run.append((cid, clause_text.strip()))
+                continue
+            flush_run()
+            if not (is_sub and short):
+                out.append((cid, clause_text))
+        flush_run()
+        return out
 
     def _split_by_matches(self, text: str, matches):
         """

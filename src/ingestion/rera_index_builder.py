@@ -32,8 +32,58 @@ LEGAL_SOURCES = {
 }
 
 # =========================================================
-# CHUNKING (LEGAL SAFE)
+# CHUNKING (LEGAL SAFE) – section labels & RERA phrasing
 # =========================================================
+
+# Act: "18. (1) If the promoter..." or "(2) The promoter..."
+_ACT_MAIN = re.compile(r"^(\d+)\.\s*(\(\d+\))?\s*", re.MULTILINE)
+_ACT_SUB = re.compile(r"^\s*(\(\d+\))\s+", re.MULTILINE)
+# Rules: "15- The Authority..." or "Rule 16" style
+_RULE_HEAD = re.compile(r"^(\d+)[-.)]\s*", re.MULTILINE)
+_SECTION_WORD = re.compile(r"^(Section|Rule|Clause)\s+(\d+[A-Za-z]*(?:\(\d+\))?)", re.IGNORECASE)
+
+
+def _normalize_act_section(content: str, source: str) -> tuple[str, str]:
+    """Extract Section N or Section N(k) and return (section_id, content_with_prefix)."""
+    content = content.strip()
+    main = _ACT_MAIN.match(content)
+    if main:
+        num, sub = main.group(1), main.group(2)
+        section_id = f"Section {num}{sub or ''}".strip()
+        # Prefix so embedding sees "Section 18(1)" in text (aligns with intent rules)
+        prefix = f"{section_id}. "
+        if not content.startswith(prefix) and not content.startswith(section_id):
+            content = prefix + content[main.end() :].strip()
+        return section_id, content
+    sub = _ACT_SUB.match(content)
+    if sub:
+        # Continuation of same section e.g. "(2) The promoter..."
+        section_id = f"Section {sub.group(1)}"  # "(2)" -> Section (2); we need parent
+        return section_id, content
+    word = _SECTION_WORD.match(content)
+    if word:
+        section_id = f"{word.group(1)} {word.group(2)}"
+        return section_id, content
+    return "", content
+
+
+def _normalize_rule_section(content: str) -> tuple[str, str]:
+    """Extract Rule N from content."""
+    content = content.strip()
+    m = _RULE_HEAD.match(content)
+    if m:
+        section_id = f"Rule {m.group(1)}"
+        prefix = f"{section_id}. "
+        rest = content[m.end() :].strip()
+        if not rest.startswith(prefix):
+            content = prefix + rest
+        return section_id, content
+    word = _SECTION_WORD.match(content)
+    if word:
+        section_id = f"{word.group(1)} {word.group(2)}"
+        return section_id, content
+    return "", content
+
 
 def chunk_legal_text(
     text: str,
@@ -43,22 +93,46 @@ def chunk_legal_text(
     state: str | None
 ) -> List[IndexDocument]:
     chunks: List[IndexDocument] = []
+    is_act = (doc_type == "rera_act")
+    is_rules = (doc_type == "state_rule")
 
-    splits = re.split(
-        r"\n(?=(Section\s+\d+|Rule\s+\d+|Clause\s+\d+|\d+\.\s))",
-        text
-    )
+    # Split: Act by main section number only; Rules by "N-" or "N-(k)" (rule numbers often mid-line in UP rules).
+    if is_act:
+        splits = re.split(r"\n(?=\d+\.\s)", text)
+    elif is_rules:
+        # Rule numbers appear mid-line (e.g. "Rate of interest 15- The Authority"); split on pattern, not only after newline.
+        splits = re.split(
+            r"(?=\d+-\s*(?:\(\d+\)|\s+[A-Z]))",
+            text
+        )
+    else:
+        splits = re.split(
+            r"\n(?=(Section\s+\d+|Rule\s+\d+|Clause\s+\d+|\d+\.\s))",
+            text
+        )
 
     for i, part in enumerate(splits):
-        content = part.strip()
-        if len(content) < 200:
+        raw = part.strip()
+        if len(raw) < 100:
             continue
 
-        section_match = re.match(
-            r"^(Section|Rule|Clause)\s+\d+[A-Za-z]*",
-            content
-        )
-        section_id = section_match.group(0) if section_match else None
+        section_id = ""
+        content = raw
+        if is_act:
+            section_id, content = _normalize_act_section(raw, source)
+        elif is_rules:
+            section_id, content = _normalize_rule_section(raw)
+        else:
+            section_match = re.match(
+                r"^(Section|Rule|Clause)\s+\d+[A-Za-z]*(?:\(\d+\))?",
+                content,
+                re.IGNORECASE
+            )
+            if section_match:
+                section_id = section_match.group(0)
+
+        if len(content) < 50:
+            continue
 
         chunks.append(
             IndexDocument(
@@ -68,7 +142,7 @@ def chunk_legal_text(
                     "chunk_id": f"{source}_{i}",
                     "doc_type": doc_type,
                     "state": state,
-                    "section": section_id
+                    "section": section_id or None
                 }
             )
         )

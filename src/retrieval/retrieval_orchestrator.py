@@ -220,10 +220,13 @@ class RetrievalOrchestrator:
     def retrieve(
         self,
         clause_result: ClauseUnderstandingResult,
-        state: str
+        state: str,
+        clause_text: str | None = None,
     ) -> EvidencePack:
         """
         Retrieve legal evidence for a clause intent.
+        Uses semantic query (intent description + statutory sections + clause snippet)
+        for better RERA relevance.
         """
 
         evidences: List[Evidence] = []
@@ -232,9 +235,16 @@ class RetrievalOrchestrator:
         for query in clause_result.retrieval_queries:
             index_names = self._resolve_indexes(query, indexes)
 
-            query_embedding = self.embedder.embed(
-                [query["intent"]]
-            )[0]
+            search_text = (
+                query.get("query_text")
+                or query.get("intent")
+                or getattr(clause_result, "intent", "unknown")
+            )
+            if clause_text and clause_text.strip():
+                snippet = " ".join(clause_text.strip().split())[:400]
+                search_text = f"{search_text} {snippet}"
+
+            query_embedding = self.embedder.embed([search_text])[0]
             query_embedding = np.array(query_embedding, dtype="float32")
 
             for index_name in index_names:

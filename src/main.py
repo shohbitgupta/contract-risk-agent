@@ -125,7 +125,8 @@ class ContractRiskAnalysisSystem:
 
             evidence_pack = self.retrieval_orchestrator.retrieve(
                 clause_result=clause_result,
-                state=state
+                state=state,
+                clause_text=chunk.text,
             )
             retrieval_quality = self.semantic_index_evaluator.evaluate(
                 clause_result=clause_result,

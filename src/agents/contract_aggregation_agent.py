@@ -111,6 +111,7 @@ class ContractAggregationAgent:
             if clause_score < 0.5:
                 statutory_anchor = self._extract_statutory_anchor(c)
                 evidence_reference = self._extract_evidence_reference(c)
+                evidence_snippet = self._extract_evidence_snippet(c)
                 issues.append(
                     KeyIssue(
                         clause_id=c.clause_id,
@@ -127,6 +128,7 @@ class ContractAggregationAgent:
                         ),
                         statutory_anchor=statutory_anchor,
                         evidence_reference=evidence_reference,
+                        evidence_snippet=evidence_snippet,
                         recommended_action=(
                             c.recommended_action
                             or "Independent legal review is advised"
@@ -145,10 +147,7 @@ class ContractAggregationAgent:
         # Contract score (risk-bearing clauses only)
         # -------------------------------------------------
         if weighted_scores:
-            contract_score = max(
-                self._percentile_contract_score(weighted_scores),
-                0.15
-            )
+            contract_score = self._percentile_contract_score(weighted_scores)
         else:
             contract_score = 0.5  # Neutral if no enforceable clauses found
 
@@ -201,15 +200,20 @@ class ContractAggregationAgent:
         return "high"
 
     def _legal_confidence(self, score: float, dist: dict, total: int) -> float:
+        if total <= 0:
+            return 0.0
+
         aligned_ratio = dist["aligned"] / total
         contradiction_ratio = dist["contradiction"] / total
         unclear_ratio = dist["insufficient_evidence"] / total
 
+        # Confidence reflects reliability/grounding, not just risk level.
+        # A risky contract can still have high confidence if the evidence is clear.
         confidence = (
-            score
-            + 0.15 * aligned_ratio
-            - 0.25 * contradiction_ratio
-            - 0.15 * unclear_ratio
+            0.35 * score
+            + 0.30 * aligned_ratio
+            + 0.20 * (1.0 - unclear_ratio)
+            + 0.15 * (1.0 - contradiction_ratio)
         )
 
         return round(max(0.0, min(1.0, confidence)), 2)
@@ -265,6 +269,12 @@ class ContractAggregationAgent:
             ref = str(citation.get("ref", ""))
             if "rera" not in source.lower() and ref:
                 return f"{source} - {ref}"
+        return None
+
+    def _extract_evidence_snippet(self, clause: ClauseAnalysisResult) -> str | None:
+        snippets = getattr(clause, "evidence_snippets", []) or []
+        if snippets:
+            return snippets[0]
         return None
 
     def _summary_text(self, risk_dist: dict, raw_dist: dict, score: float) -> str:

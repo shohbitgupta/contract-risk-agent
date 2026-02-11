@@ -39,7 +39,16 @@ intents:
     intent_name: "delay_in_possession"
     description: >
       Clauses dealing with timelines for handing over possession
-      and consequences of delay.
+      and consequences of delay. Promoter fails to complete or give possession;
+      refund with interest; withdraw from project; interest for every month of delay.
+
+    retrieval_phrases:
+      - "give possession of an apartment plot or building"
+      - "handing over of the possession"
+      - "return the amount received with interest"
+      - "agreement for sale"
+      - "failure to complete"
+      - "refund of amount paid along with interest"
 
     keywords:
       - "delay in possession"
@@ -84,6 +93,12 @@ intents:
     intent_name: "force_majeure"
     description: >
       Clauses extending timelines due to uncontrollable events.
+      Extension of registration due to force majeure; act of god; beyond control.
+
+    retrieval_phrases:
+      - "force majeure"
+      - "extension of registration"
+      - "section 6"
 
     keywords:
       - "force majeure"
@@ -117,6 +132,14 @@ intents:
     intent_name: "refund_and_withdrawal"
     description: >
       Clauses related to refund, withdrawal, and interest.
+      Refund of amount paid; interest at such rate as may be prescribed; compensation.
+
+    retrieval_phrases:
+      - "refund of amount paid"
+      - "interest at such rate as may be prescribed"
+      - "compensation in the manner as provided"
+      - "withdraw from the project"
+      - "Section 18"
 
     keywords:
       - "refund"
@@ -152,6 +175,15 @@ intents:
     intent_name: "defect_liability"
     description: >
       Clauses dealing with structural or workmanship defects.
+      Structural defect within five years; handing over possession; rectify without charge.
+
+    retrieval_phrases:
+      - "structural defect"
+      - "defect in workmanship"
+      - "five years"
+      - "handing over possession"
+      - "rectify such defects"
+      - "Section 14"
 
     keywords:
       - "defect liability"
@@ -185,6 +217,14 @@ intents:
     intent_name: "jurisdiction"
     description: >
       Clauses defining dispute resolution and jurisdiction.
+      Complaint with Authority; adjudicating officer; Appellate Tribunal.
+
+    retrieval_phrases:
+      - "complaint with the Authority"
+      - "adjudicating officer"
+      - "Appellate Tribunal"
+      - "Section 31"
+      - "Section 71"
 
     keywords:
       - "jurisdiction"
@@ -248,6 +288,13 @@ violation_only_intents:
     intent_name: "waiver_of_rera_rights"
     description: >
       Clauses where allottee waives statutory RERA rights.
+      Section 18 19 rights; void; unenforceable.
+
+    retrieval_phrases:
+      - "waives all rights"
+      - "Section 18"
+      - "Section 79"
+      - "rights of allottee"
 
     keywords:
       - "waives all rights"

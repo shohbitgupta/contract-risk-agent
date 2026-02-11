@@ -144,6 +144,7 @@ class LegalExplanationAgent:
                 }
                 for ev in evidence_pack.evidences
             ],
+            "evidence_snippets": self._build_evidence_snippets(evidence_pack),
         }
 
         return build_model(
@@ -152,6 +153,29 @@ class LegalExplanationAgent:
             strict=STRICT_SCHEMA,
             log_fn=log_schema_drift
         )
+
+    def _build_evidence_snippets(self, evidence_pack) -> List[str]:
+        snippets: List[str] = []
+        for ev in getattr(evidence_pack, "evidences", []):
+            source = (getattr(ev, "source", "") or "").lower()
+            metadata = getattr(ev, "metadata", None)
+            doc_type = getattr(metadata, "doc_type", "") if metadata else ""
+
+            # Prefer statutory snippets first.
+            is_statutory = "rera" in source or doc_type in {"rera_act", "state_rule"}
+            if not is_statutory:
+                continue
+
+            text = (getattr(ev, "text", "") or "").strip()
+            if not text:
+                continue
+            snippet = " ".join(text.split())
+            if len(snippet) > 220:
+                snippet = snippet[:220].rstrip() + "..."
+            snippets.append(snippet)
+            if len(snippets) >= 2:
+                break
+        return snippets
 
     def _grounding_issues(self, retrieval_quality: Dict[str, Any]) -> List[str]:
         issues: List[str] = []

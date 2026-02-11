@@ -40,6 +40,44 @@ def _summarize_result(result: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _grounding_diagnostics(result: Dict[str, Any]) -> Dict[str, Any]:
+    clauses = result.get("clauses", [])
+    if not clauses:
+        return {
+            "avg_groundedness": None,
+            "low_grounded_count": 0,
+            "insufficient_evidence_count": 0,
+            "contradiction_count": 0,
+            "low_grounded_clauses": [],
+        }
+
+    groundedness_values = [
+        c.get("groundedness_score")
+        for c in clauses
+        if c.get("groundedness_score") is not None
+    ]
+
+    low_grounded = [
+        c for c in clauses
+        if c.get("groundedness_score") is not None and c.get("groundedness_score", 1.0) < 0.4
+    ]
+
+    return {
+        "avg_groundedness": (
+            round(sum(groundedness_values) / len(groundedness_values), 2)
+            if groundedness_values else None
+        ),
+        "low_grounded_count": len(low_grounded),
+        "insufficient_evidence_count": sum(
+            1 for c in clauses if c.get("alignment") == "insufficient_evidence"
+        ),
+        "contradiction_count": sum(
+            1 for c in clauses if c.get("alignment") == "contradiction"
+        ),
+        "low_grounded_clauses": low_grounded[:5],
+    }
+
+
 def main() -> None:
     st.set_page_config(
         page_title="Contract Risk Analyzer",
@@ -94,6 +132,30 @@ def main() -> None:
         st.subheader("Distribution")
         st.json(summary["distribution"])
 
+        st.subheader("Grounding Diagnostics")
+        grounding = _grounding_diagnostics(result)
+        gd1, gd2, gd3, gd4 = st.columns(4)
+        gd1.metric("Avg Groundedness", grounding["avg_groundedness"] if grounding["avg_groundedness"] is not None else "N/A")
+        gd2.metric("Low Grounded Clauses", grounding["low_grounded_count"])
+        gd3.metric("Insufficient Evidence", grounding["insufficient_evidence_count"])
+        gd4.metric("Contradictions", grounding["contradiction_count"])
+
+        if grounding["low_grounded_clauses"]:
+            with st.expander("Why confidence is low (sample clauses)"):
+                for clause in grounding["low_grounded_clauses"]:
+                    ref = clause.get("normalized_reference") or f"Clause {clause.get('clause_id', 'N/A')}"
+                    heading = clause.get("heading")
+                    if heading:
+                        ref = f"{ref} - {heading}"
+                    st.markdown(f"**{ref}**")
+                    st.caption(
+                        f"Alignment: {clause.get('alignment', 'N/A')} | "
+                        f"Groundedness: {clause.get('groundedness_score', 'N/A')} | "
+                        f"Quality: {clause.get('quality_score', 'N/A')}"
+                    )
+                    if clause.get("issue_reason"):
+                        st.write(f"- {clause['issue_reason']}")
+
         st.subheader("Lawyer Summary")
         lawyer_summary = result.get("lawyer_summary", {})
         if lawyer_summary:
@@ -146,6 +208,8 @@ def main() -> None:
                     st.write(f"- **Statutory anchor:** {issue['statutory_anchor']}")
                 if issue.get("evidence_reference"):
                     st.write(f"- **Retrieved reference:** {issue['evidence_reference']}")
+                if issue.get("evidence_snippet"):
+                    st.write(f"- **RERA segment:** {issue['evidence_snippet']}")
         else:
             st.write("No top issues identified.")
 
@@ -157,8 +221,7 @@ def main() -> None:
             mime="application/json",
         )
 
-        st.subheader("Full JSON Output")
-        st.code(output_json, language="json")
+        # Keep UI concise: downloadable report only.
 
     except Exception as exc:
         st.error(f"Analysis failed: {exc}")

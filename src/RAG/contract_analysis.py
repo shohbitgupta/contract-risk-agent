@@ -28,6 +28,7 @@ class KeyIssue(StrictBaseModel):
     issue: str
     statutory_anchor: Optional[str] = None
     evidence_reference: Optional[str] = None
+    evidence_snippet: Optional[str] = None
     recommended_action: str
     quality_score: float = Field(ge=0.0, le=1.0)
 
@@ -52,6 +53,7 @@ class ClauseAnalysisResult(StrictBaseModel):
     groundedness_score: Optional[float] = Field(default=None, ge=0.0, le=1.0)
 
     citations: List[Dict[str, str]] = []
+    evidence_snippets: List[str] = []
     recommended_action: Optional[str] = None
     issue_reason: Optional[str] = None
 
