@@ -112,7 +112,7 @@ class FAISSVectorIndex:
     def search(
         self,
         query_embedding: np.ndarray,
-        top_k: int = 5
+        top_k: int = 20
     ) -> List[IndexDocument]:
 
         if self.index.ntotal == 0:

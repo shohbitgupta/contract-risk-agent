@@ -153,6 +153,7 @@ class EvidencePack(StrictBaseModel):
     clause_text: str
     risk_level: str
     evidences: List[Evidence]
+    diagnostics: Dict[str, Any] = {}
     resolution: Optional[str] = None
 
 

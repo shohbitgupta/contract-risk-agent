@@ -95,13 +95,17 @@ class ContractAggregationAgent:
             semantic_conf = getattr(c, "semantic_confidence", 1.0)
             semantic_conf = max(0.0, min(1.0, semantic_conf))
 
+            groundedness = getattr(c, "groundedness", 1.0)
+
             clause_score = round(
                 c.quality_score
                 * alignment_weight
                 * risk_multiplier
-                * (0.7 + 0.3 * semantic_conf),
+                * (0.7 + 0.3 * semantic_conf)
+                * (0.8 + 0.2 * groundedness),
                 3
             )
+
 
             weighted_scores.append(clause_score)
 
