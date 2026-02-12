@@ -1,4 +1,6 @@
-from typing import List
+from __future__ import annotations
+
+from typing import List, Optional
 from constants.alignment import ALLOWED_ALIGNMENTS
 
 from RAG.contract_analysis import (
@@ -73,6 +75,15 @@ class ContractAggregationAgent:
             "contradiction": sum(1 for c in risk_clauses if c.alignment == "contradiction"),
         }
 
+        insufficient_ratio = risk_dist["insufficient_evidence"] / total_risk
+        partially_ratio = risk_dist["partially_aligned"] / total_risk
+
+        # -------------------------------------------------
+        # Top issues (lawyer-facing)
+        # IMPORTANT: This does NOT change score/confidence.
+        # -------------------------------------------------
+        issues = self._build_top_issues(risk_clauses)
+
         # =========================================================
         # NEW CLEAN 3-FACTOR CONTRACT SCORE
         # =========================================================
@@ -87,6 +98,23 @@ class ContractAggregationAgent:
             0.2 * grounding,
             2
         )
+
+        # -------------------------------------------------
+        # Semantic consistency caps (verdict ↔ score coherence)
+        # -------------------------------------------------
+        # If a large fraction of enforceable clauses are "insufficient_evidence",
+        # the contract cannot be scored as "very safe" even if grounding is high.
+        #
+        # This prevents unstable summaries like:
+        #   score=0.85 (safe) AND insufficient_ratio≈0.63 (review_required)
+        contradiction_fatal = self.calibration.thresholds.get("contradiction_fatal", True)
+        insufficient_threshold = self.calibration.thresholds.get("insufficient_evidence_ratio", 0.30)
+
+        if contradiction_fatal and risk_dist["contradiction"] > 0:
+            contract_score = min(contract_score, 0.39)
+        elif insufficient_ratio > insufficient_threshold:
+            # cap below the "low risk" band
+            contract_score = min(contract_score, 0.64)
 
         legal_confidence = round(
             0.6 * grounding +
@@ -140,7 +168,11 @@ class ContractAggregationAgent:
         if not clauses:
             return 0.7
         scores = [
-            getattr(c, "groundedness", 0.7)
+            (
+                float(getattr(c, "groundedness_score"))
+                if getattr(c, "groundedness_score", None) is not None
+                else 0.7
+            )
             for c in clauses
         ]
         return sum(scores) / len(scores)
@@ -164,3 +196,97 @@ class ContractAggregationAgent:
             f"The overall legal risk score of {score} reflects legal exposure, "
             f"drafting clarity, and statutory grounding."
         )
+
+    # =========================================================
+    # Issues extraction (used by UI + lawyer summary)
+    # =========================================================
+
+    def _build_top_issues(self, clauses: List[ClauseAnalysisResult]) -> List[KeyIssue]:
+        """
+        Build KeyIssue list from clause outputs.
+
+        This is intentionally conservative and does not affect scoring.
+        """
+        out: List[KeyIssue] = []
+
+        for c in clauses:
+            # focus on enforceable clauses that are weak/unclear
+            is_problem = (
+                c.alignment in {"contradiction", "insufficient_evidence"}
+                or float(c.quality_score) < 0.5
+            )
+            if not is_problem:
+                continue
+
+            statutory_anchor = self._statutory_anchor(c)
+            evidence_reference = self._evidence_reference(c)
+            evidence_snippet = (c.evidence_snippets[0] if getattr(c, "evidence_snippets", None) else None)
+
+            issue_text = (
+                c.issue_reason
+                or self._default_issue_reason(
+                    alignment=c.alignment,
+                    statutory_anchor=statutory_anchor,
+                    evidence_reference=evidence_reference,
+                )
+            )
+
+            out.append(
+                KeyIssue(
+                    clause_id=c.clause_id,
+                    display_reference=c.normalized_reference or f"Clause {c.clause_id}",
+                    heading=c.heading,
+                    risk_level=c.risk_level,
+                    issue=issue_text,
+                    statutory_anchor=statutory_anchor,
+                    evidence_reference=evidence_reference,
+                    evidence_snippet=evidence_snippet,
+                    recommended_action=c.recommended_action or "Independent legal review is advised",
+                    quality_score=float(round(c.quality_score, 2)),
+                )
+            )
+
+        # sort worst first
+        out.sort(key=lambda x: x.quality_score)
+        return out
+
+    def _statutory_anchor(self, clause: ClauseAnalysisResult) -> Optional[str]:
+        refs = getattr(clause, "statutory_refs", None) or []
+        if refs:
+            return refs[0]
+        # fall back to citations (prefer statute-like sources)
+        for cit in getattr(clause, "citations", []) or []:
+            source = str(cit.get("source", ""))
+            ref = str(cit.get("ref", ""))
+            if "rera" in source.lower():
+                return f"{source} - {ref}" if ref else source
+        return None
+
+    def _evidence_reference(self, clause: ClauseAnalysisResult) -> Optional[str]:
+        for cit in getattr(clause, "citations", []) or []:
+            source = str(cit.get("source", ""))
+            ref = str(cit.get("ref", ""))
+            if "rera" not in source.lower() and ref:
+                return f"{source} - {ref}"
+        return None
+
+    def _default_issue_reason(
+        self,
+        *,
+        alignment: str,
+        statutory_anchor: Optional[str],
+        evidence_reference: Optional[str],
+    ) -> str:
+        if alignment == "contradiction":
+            base = "Clause conflicts with statutory RERA protections"
+        elif alignment == "insufficient_evidence":
+            base = "Clause lacks clear statutory support or explicit rights"
+        else:
+            base = "Clause requires clarification to avoid legal ambiguity"
+
+        details: List[str] = []
+        if statutory_anchor:
+            details.append(f"Anchor: {statutory_anchor}")
+        if evidence_reference:
+            details.append(f"Evidence: {evidence_reference}")
+        return f"{base} ({'; '.join(details)})" if details else base

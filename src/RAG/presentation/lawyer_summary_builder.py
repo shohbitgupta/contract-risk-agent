@@ -93,6 +93,12 @@ def build_lawyer_friendly_summary(
         if total_enforceable > 0 else 0
     )
 
+    # Mirrors the clarity component used in aggregation (0=unclear, 1=clear).
+    clarity_score = max(
+        0.0,
+        1.0 - 0.5 * insufficient_ratio - 0.3 * partially_ratio,
+    )
+
     # -------------------------------------------------
     # Verdict logic (layered, lawyer-aligned)
     # -------------------------------------------------
@@ -109,8 +115,10 @@ def build_lawyer_friendly_summary(
     elif insufficient_ratio > insufficient_ratio_threshold:
         verdict = "review_required"
         headline = (
-            "Moderate legal risk: multiple enforceable clauses "
-            "lack clear statutory alignment."
+            "Review required: drafting ambiguity is high even if the statutory "
+            "core appears broadly consistent."
+            if score >= 0.75
+            else "Moderate legal risk: multiple enforceable clauses lack clear statutory alignment."
         )
 
     # 🟠 Score-based fallback
@@ -163,8 +171,14 @@ def build_lawyer_friendly_summary(
         f"Total clauses reviewed: {len(analysis.clauses)}",
         f"Enforceable clauses assessed: {total_enforceable}",
         f"Overall legal risk score: {score} (0 = high risk, 1 = low risk)",
+        f"Drafting clarity score: {round(clarity_score, 2)} (0 = unclear, 1 = clear)",
+        (
+            "Statutory clarity ratio: "
+            f"{dist.insufficient_evidence}/{total_enforceable} "
+            f"({round(insufficient_ratio, 2)})"
+        ),
         f"High-risk enforceable clauses: "
-        f"{len([i for i in issues if i.quality_score < 0.5])}",
+        f"{sum(1 for c in enforceable_clauses if getattr(c, 'risk_level', None) == 'high')}",
     ]
 
     # -------------------------------------------------
