@@ -106,6 +106,7 @@ class UserContractChunker:
     CLAUSE_PATTERNS = [
         r"(^(SCHEDULE|ANNEXURE)\s*[-A-Z0-9]+)",
         r"((ARTICLE|SECTION|CLAUSE)\s+([0-9]+|[IVX]+)(\.[0-9]+)?)",
+        r"(^CLAUSE\s+[A-Z0-9]+\.\s)",
         r"(^([A-Z]|\d+)\.\s)",
         r"(^\d+(\.\d+)+(\([a-z0-9]+\))?)",
         r"(^\([a-zA-Z0-9]+\)\s)",
@@ -148,11 +149,16 @@ class UserContractChunker:
         raw_clauses = self._merge_small_subclauses(raw_clauses)
 
         chunks: List[ContractChunk] = []
+        current_parent: Optional[str] = None
 
         for cid, clause_text in raw_clauses:
             clean_text = clause_text.strip()
             chunk_type = self._detect_chunk_type(cid)
             title = self._extract_title(clean_text)
+
+            # Track parent section for sub-clauses like "(ii)" or "D."
+            if self._is_parent_candidate(cid, chunk_type):
+                current_parent = cid.strip()
 
             # Sub-chunk definitions
             if (
@@ -168,7 +174,20 @@ class UserContractChunker:
                 chunks.extend(self._sub_chunk_schedule(cid, clean_text))
                 continue
 
-            chunks.append(self._build_chunk(cid, clean_text, chunk_type, title))
+            # Sub-chunk very large clauses to preserve locality for retrieval
+            if chunk_type == ChunkType.CLAUSE and len(clean_text) > 2400:
+                chunks.extend(self._sub_chunk_large_clause(cid, clean_text, title))
+                continue
+
+            chunks.append(
+                self._build_chunk(
+                    cid,
+                    clean_text,
+                    chunk_type,
+                    title,
+                    parent_section=current_parent if self._is_subclause_id(cid) else None,
+                )
+            )
 
         return chunks
 
@@ -193,6 +212,12 @@ class UserContractChunker:
             r"(\s)(\([a-z]\)\s)",
             r"\n\2",
             text
+        )
+        # Normalize "Clause D." / "Clause 1.2" starts onto their own lines
+        text = re.sub(
+            r"(?i)(?<!\n)(\s+)(clause\s+[A-Z0-9]+\.)\s+",
+            r"\n\2 ",
+            text,
         )
         return text.strip()
 
@@ -282,7 +307,8 @@ class UserContractChunker:
         cid: str,
         text: str,
         chunk_type: ChunkType,
-        title: Optional[str]
+        title: Optional[str],
+        parent_section: Optional[str] = None,
     ) -> ContractChunk:
         """
         Construct a ContractChunk with metadata fields populated.
@@ -294,6 +320,8 @@ class UserContractChunker:
             text=text,
             chunk_type=chunk_type,
             title=title,
+            parent_section=parent_section,
+            normalized_reference=self._normalized_reference(cid, parent_section),
             page_number=None,
             confidence=self._confidence_for(cid),
             tags=[],
@@ -319,6 +347,80 @@ class UserContractChunker:
         if re.match(r"^[A-Z]\.$", cid.strip()):
             return ChunkType.SECTION_HEADER
         return ChunkType.CLAUSE
+
+    def _is_subclause_id(self, cid: str) -> bool:
+        cid_s = (cid or "").strip()
+        if re.fullmatch(r"\([a-z0-9ivx]+\)", cid_s, flags=re.IGNORECASE):
+            return True
+        if re.fullmatch(r"[A-Z]\.", cid_s):
+            return True
+        return False
+
+    def _is_parent_candidate(self, cid: str, chunk_type: ChunkType) -> bool:
+        cid_s = (cid or "").strip()
+        if chunk_type == ChunkType.SCHEDULE:
+            return True
+        # top-level numeric: "1." or "2."
+        if re.fullmatch(r"\d+\.", cid_s):
+            return True
+        # multi-level: "1.12"
+        if re.fullmatch(r"\d+(\.\d+)+", cid_s):
+            return True
+        # explicit labels
+        if re.match(r"(?i)^(clause|article|section)\s+", cid_s):
+            return True
+        return False
+
+    def _normalized_reference(self, cid: str, parent_section: Optional[str]) -> str:
+        cid_s = (cid or "").strip()
+        if not cid_s:
+            return "Clause N/A"
+        if re.match(r"(?i)^(clause|article|section)\s+", cid_s):
+            base = cid_s[0].upper() + cid_s[1:]
+        else:
+            base = f"Clause {cid_s}"
+        if parent_section and self._is_subclause_id(cid_s) and parent_section != cid_s:
+            return f"{base} (under {self._normalized_reference(parent_section, None)})"
+        return base
+
+    def _sub_chunk_large_clause(self, cid: str, text: str, title: Optional[str]) -> List[ContractChunk]:
+        """
+        Split very large clauses by paragraph boundaries while preserving the clause id.
+        """
+        paras = [p.strip() for p in re.split(r"\n{2,}", text) if p.strip()]
+        if len(paras) <= 1:
+            return [self._build_chunk(cid, text, ChunkType.CLAUSE, title)]
+
+        chunks: List[ContractChunk] = []
+        buf: List[str] = []
+        buf_len = 0
+        part = 1
+
+        def flush():
+            nonlocal part, buf, buf_len
+            if not buf:
+                return
+            chunk_text = "\n\n".join(buf).strip()
+            chunks.append(
+                self._build_chunk(
+                    f"{cid}_PART_{part}",
+                    chunk_text,
+                    ChunkType.CLAUSE,
+                    title if part == 1 else None,
+                )
+            )
+            part += 1
+            buf = []
+            buf_len = 0
+
+        for p in paras:
+            if buf_len + len(p) > 1800 and buf:
+                flush()
+            buf.append(p)
+            buf_len += len(p)
+        flush()
+
+        return chunks
 
     # --------------------------------------------------
     # Title extraction

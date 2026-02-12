@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 import streamlit as st
+import re
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -13,6 +14,26 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from main import main as run_contract_analysis  # noqa: E402
+
+
+_SECTION_CITE_RE = re.compile(r"(Section\s+\d+[A-Za-z]*\b(?:\(\d+\))?)", re.IGNORECASE)
+
+
+def _highlight_citations(text: str) -> str:
+    """
+    Render-friendly citation highlighting for statute anchors like:
+    - Section 18
+    - Section 18(1)
+    - Section 18A
+    """
+    if not text:
+        return ""
+    safe = (
+        text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+    return _SECTION_CITE_RE.sub(r"<mark>\1</mark>", safe)
 
 
 def _available_states() -> list[str]:
@@ -205,11 +226,20 @@ def main() -> None:
                     f"Score: {issue.get('quality_score', 'N/A')}"
                 )
                 if issue.get("statutory_anchor"):
-                    st.write(f"- **Statutory anchor:** {issue['statutory_anchor']}")
+                    st.markdown(
+                        f"- **Statutory anchor:** {_highlight_citations(str(issue['statutory_anchor']))}",
+                        unsafe_allow_html=True,
+                    )
                 if issue.get("evidence_reference"):
-                    st.write(f"- **Retrieved reference:** {issue['evidence_reference']}")
+                    st.markdown(
+                        f"- **Retrieved reference:** {_highlight_citations(str(issue['evidence_reference']))}",
+                        unsafe_allow_html=True,
+                    )
                 if issue.get("evidence_snippet"):
-                    st.write(f"- **RERA segment:** {issue['evidence_snippet']}")
+                    st.markdown(
+                        f"- **RERA segment:** {_highlight_citations(str(issue['evidence_snippet']))}",
+                        unsafe_allow_html=True,
+                    )
         else:
             st.write("No top issues identified.")
 

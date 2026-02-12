@@ -64,6 +64,8 @@ class ContractAggregationAgent:
 
         weighted_scores: List[float] = []
         issues: List[KeyIssue] = []
+        groundedness_values: List[float] = []
+        semantic_values: List[float] = []
 
         # -------------------------------------------------
         # Clause-level evaluation
@@ -95,15 +97,40 @@ class ContractAggregationAgent:
             semantic_conf = getattr(c, "semantic_confidence", 1.0)
             semantic_conf = max(0.0, min(1.0, semantic_conf))
 
-            groundedness = getattr(c, "groundedness", 1.0)
+            groundedness = getattr(c, "groundedness_score", None)
+            groundedness = (
+                float(groundedness)
+                if groundedness is not None
+                else 0.5
+            )
+            groundedness = max(0.0, min(1.0, groundedness))
+
+            groundedness_values.append(groundedness)
+            semantic_values.append(semantic_conf)
+
+            # -------------------------------------------------
+            # Clause score design (key change)
+            # -------------------------------------------------
+            # Your earlier scoring made the contract score heavily dependent on
+            # `quality_score`, which in turn is often capped by compliance confidence.
+            # When grounding is strong but the model is cautious, scores stayed near ~0.
+            #
+            # New approach:
+            # - `quality_score` still matters (interpretation confidence)
+            # - `groundedness_score` lifts score when evidence is clearly anchored
+            # - `semantic_confidence` contributes modestly (chunk quality)
+            #
+            # Result: evidence-backed clauses no longer get "stuck" at ~0.05–0.10.
+            combined_conf = (
+                0.45 * float(c.quality_score)
+                + 0.35 * groundedness
+                + 0.20 * semantic_conf
+            )
+            combined_conf = max(0.0, min(1.0, combined_conf))
 
             clause_score = round(
-                c.quality_score
-                * alignment_weight
-                * risk_multiplier
-                * (0.7 + 0.3 * semantic_conf)
-                * (0.8 + 0.2 * groundedness),
-                3
+                combined_conf * alignment_weight * risk_multiplier,
+                3,
             )
 
 
@@ -165,7 +192,15 @@ class ContractAggregationAgent:
             legal_confidence=self._legal_confidence(
                 contract_score,
                 risk_dist,
-                total_risk_clauses
+                total_risk_clauses,
+                avg_groundedness=(
+                    round(sum(groundedness_values) / len(groundedness_values), 2)
+                    if groundedness_values else 0.0
+                ),
+                avg_semantic_conf=(
+                    round(sum(semantic_values) / len(semantic_values), 2)
+                    if semantic_values else 0.0
+                ),
             ),
             summary=self._summary_text(risk_dist, raw_dist, contract_score),
             distribution=ContractRiskDistribution(**risk_dist)
@@ -203,7 +238,15 @@ class ContractAggregationAgent:
             return "medium"
         return "high"
 
-    def _legal_confidence(self, score: float, dist: dict, total: int) -> float:
+    def _legal_confidence(
+        self,
+        score: float,
+        dist: dict,
+        total: int,
+        *,
+        avg_groundedness: float,
+        avg_semantic_conf: float,
+    ) -> float:
         if total <= 0:
             return 0.0
 
@@ -214,10 +257,11 @@ class ContractAggregationAgent:
         # Confidence reflects reliability/grounding, not just risk level.
         # A risky contract can still have high confidence if the evidence is clear.
         confidence = (
-            0.35 * score
-            + 0.30 * aligned_ratio
-            + 0.20 * (1.0 - unclear_ratio)
-            + 0.15 * (1.0 - contradiction_ratio)
+            0.45 * max(0.0, min(1.0, avg_groundedness))
+            + 0.20 * max(0.0, min(1.0, avg_semantic_conf))
+            + 0.15 * aligned_ratio
+            + 0.10 * (1.0 - unclear_ratio)
+            + 0.10 * (1.0 - contradiction_ratio)
         )
 
         return round(max(0.0, min(1.0, confidence)), 2)
