@@ -263,11 +263,31 @@ class ContractAggregationAgent:
         return None
 
     def _evidence_reference(self, clause: ClauseAnalysisResult) -> Optional[str]:
+        """
+        Prefer statutory evidence references when available.
+
+        Why:
+        - Makes lawyer summaries feel grounded in the Act/Rules, not just model templates.
+        - Does not affect scoring; presentation/issue text only.
+        """
+        statutory: List[str] = []
+        non_statutory: List[str] = []
+
         for cit in getattr(clause, "citations", []) or []:
-            source = str(cit.get("source", ""))
-            ref = str(cit.get("ref", ""))
-            if "rera" not in source.lower() and ref:
-                return f"{source} - {ref}"
+            source = str(cit.get("source", "")).strip()
+            ref = str(cit.get("ref", "")).strip()
+            if not source or not ref:
+                continue
+            item = f"{source} - {ref}"
+            if "rera" in source.lower():
+                statutory.append(item)
+            else:
+                non_statutory.append(item)
+
+        if statutory:
+            return statutory[0]
+        if non_statutory:
+            return non_statutory[0]
         return None
 
     def _default_issue_reason(
