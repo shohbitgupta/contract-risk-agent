@@ -106,6 +106,7 @@ class LegalExplanationAgent:
         # -------------------------------------------------
         # 5️⃣ Build STRICT payload
         # -------------------------------------------------
+        groundedness = getattr(evidence_pack, "grounding_score", 0.7)
         data = {
             "clause_id": clause.chunk_id,
             "normalized_reference": (
@@ -145,6 +146,7 @@ class LegalExplanationAgent:
                 for ev in evidence_pack.evidences
             ],
             "evidence_snippets": self._build_evidence_snippets(evidence_pack),
+            "groundedness": groundedness,
         }
 
         return build_model(
@@ -217,13 +219,24 @@ class LegalExplanationAgent:
     # =========================================================
 
     def _determine_alignment(self, clause_result, evidence_pack) -> str:
+        diagnostics = getattr(evidence_pack, "diagnostics", {})
+
+        anchor_match = diagnostics.get("anchor_match", False)
+        coverage = diagnostics.get("coverage", False)
+
         if clause_result.compliance_mode == "CONTRADICTION":
-            return "contradiction"
-        if not evidence_pack.evidences:
-            return "insufficient_evidence"
-        if clause_result.compliance_mode == "IMPLICIT":
-            return "aligned"
-        return "partially_aligned"
+            alignment = "contradiction"
+
+        elif coverage and anchor_match:
+            alignment = "aligned"
+
+        elif coverage and not anchor_match:
+            alignment = "partially_aligned"
+
+        else:
+            alignment = "insufficient_evidence"
+
+        return alignment
 
     # =========================================================
     # Explanation Builder (tiered + lawyer-safe)

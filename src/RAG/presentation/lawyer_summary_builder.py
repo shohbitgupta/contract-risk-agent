@@ -20,11 +20,11 @@ def build_lawyer_friendly_summary(
     Converts a ContractAnalysisResult into a lawyer-grade,
     opinion-style summary.
 
-    This layer:
-    - Issues contract-level legal verdicts
-    - Explains reasoning in enforceability terms
-    - Applies jurisdictional / calibration policy
-    - Avoids ML or statistical language
+    Principles:
+    - Contradictions are fatal
+    - Ambiguity is assessed proportionally
+    - Score is secondary signal
+    - No ML/statistical language
     """
 
     summary = analysis.contract_summary
@@ -43,7 +43,7 @@ def build_lawyer_friendly_summary(
     total_enforceable = len(enforceable_clauses)
 
     # -------------------------------------------------
-    # Safety fallback (lawyer-safe)
+    # Safety fallback
     # -------------------------------------------------
     if total_enforceable == 0:
         return LawyerFriendlySummary(
@@ -65,19 +65,37 @@ def build_lawyer_friendly_summary(
         )
 
     # -------------------------------------------------
-    # Verdict logic (policy-driven, lawyer-aligned)
+    # Calibration thresholds
     # -------------------------------------------------
-
     contradiction_fatal = True
-    insufficient_ratio = 0.25
+    insufficient_ratio_threshold = 0.30  # default
 
     if calibration:
         contradiction_fatal = calibration.thresholds.get(
-            "contradiction_fatal", True
+            "contradiction_fatal",
+            True
         )
-        insufficient_ratio = calibration.thresholds.get(
-            "insufficient_evidence_ratio", insufficient_ratio
+        insufficient_ratio_threshold = calibration.thresholds.get(
+            "insufficient_evidence_ratio",
+            insufficient_ratio_threshold
         )
+
+    # -------------------------------------------------
+    # Derived ratios
+    # -------------------------------------------------
+    insufficient_ratio = (
+        dist.insufficient_evidence / total_enforceable
+        if total_enforceable > 0 else 0
+    )
+
+    partially_ratio = (
+        dist.partially_aligned / total_enforceable
+        if total_enforceable > 0 else 0
+    )
+
+    # -------------------------------------------------
+    # Verdict logic (layered, lawyer-aligned)
+    # -------------------------------------------------
 
     # 🔴 Fatal statutory contradiction
     if contradiction_fatal and dist.contradiction > 0:
@@ -87,18 +105,22 @@ def build_lawyer_friendly_summary(
             "conflict with mandatory RERA protections."
         )
 
-    # 🟠 Material ambiguity in enforceable clauses
-    elif (
-        score < 0.65
-        or dist.insufficient_evidence > total_enforceable * insufficient_ratio
-    ):
+    # 🟠 Material ambiguity (ratio-based)
+    elif insufficient_ratio > insufficient_ratio_threshold:
         verdict = "review_required"
         headline = (
-            "Moderate legal risk: key enforceable clauses "
+            "Moderate legal risk: multiple enforceable clauses "
             "lack clear statutory alignment."
         )
 
-    # 🟢 Broad statutory compliance
+    # 🟠 Score-based fallback
+    elif score < 0.5:
+        verdict = "review_required"
+        headline = (
+            "Moderate legal risk: enforceability concerns require review."
+        )
+
+    # 🟢 Broad compliance
     else:
         verdict = "safe_to_sign"
         headline = (
@@ -117,13 +139,13 @@ def build_lawyer_friendly_summary(
             f"with mandatory provisions of the RERA Act."
         )
 
-    if dist.insufficient_evidence > 0:
+    if insufficient_ratio > 0:
         why.append(
             f"{dist.insufficient_evidence} enforceable clause(s) do not "
             f"explicitly preserve statutory rights, increasing litigation risk."
         )
 
-    if dist.partially_aligned > 0:
+    if partially_ratio > 0:
         why.append(
             f"{dist.partially_aligned} enforceable clause(s) rely on implicit "
             f"statutory incorporation rather than clear drafting."
@@ -131,12 +153,11 @@ def build_lawyer_friendly_summary(
 
     if not why:
         why.append(
-            "No material conflicts with statutory protections were identified "
-            "in enforceable clauses."
+            "No material statutory conflicts were identified in enforceable clauses."
         )
 
     # -------------------------------------------------
-    # Key risk statistics (lawyer-trusted metrics)
+    # Key risk statistics (lawyer-readable)
     # -------------------------------------------------
     stats = [
         f"Total clauses reviewed: {len(analysis.clauses)}",
@@ -147,7 +168,7 @@ def build_lawyer_friendly_summary(
     ]
 
     # -------------------------------------------------
-    # Critical clauses (top 5 enforceable)
+    # Critical clauses (top 5)
     # -------------------------------------------------
     critical = [
         f"{i.display_reference or ('Clause ' + i.clause_id)}"
@@ -181,7 +202,7 @@ def build_lawyer_friendly_summary(
         )
 
     # -------------------------------------------------
-    # Final lawyer-grade output
+    # Final output
     # -------------------------------------------------
     return LawyerFriendlySummary(
         verdict=verdict,
